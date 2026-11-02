@@ -116,19 +116,65 @@
          color:#ffd34d; text-shadow:0 3px 12px rgba(0,0,0,.7); pointer-events:none; z-index:5; }
   .hidden { display:none !important; }
   #banner { font-size:13px; color:#9fb2cc; }
+  /* ================= TELA DE SALAS (1v1 LOCAL) ================= */
+  #powerups2 { display:flex; gap:12px; margin:0 0 6px; }
+  #controlsSala { font-size:12.5px; color:#9fb2cc; margin:0 0 12px; text-align:center; line-height:1.7; }
+  #salaScreen { position:fixed; inset:0; z-index:30; display:flex; align-items:center;
+                justify-content:center; background:rgba(4,9,18,.93); backdrop-filter:blur(6px); }
+  #salaScreen.hidden { display:none !important; }
+  .salaCard { width:min(480px, 94vw); max-height:92vh; overflow-y:auto; display:flex; flex-direction:column;
+              gap:13px; padding:26px 28px 22px; border-radius:18px; text-align:center;
+              background:linear-gradient(180deg, rgba(9,16,30,.82), rgba(9,16,30,.68));
+              border:1px solid rgba(255,255,255,.14); box-shadow:0 22px 60px rgba(0,0,0,.5); }
+  .salaTitle { font-size:24px; font-weight:800; letter-spacing:1.5px; }
+  .salaTitle .g { color:#ffd34d; }
+  .salaSub { color:#9fb2cc; font-size:12.5px; margin-top:-6px; }
+  .joinRow { display:flex; gap:8px; }
+  .joinRow input { flex:1; background:#162232; border:1px solid #384b66; border-radius:8px; color:#e8eef7;
+                   padding:10px 12px; font-size:14px; text-transform:uppercase; letter-spacing:1px; }
+  .joinRow input:focus { outline:2px solid #2d7ff9; border-color:#2d7ff9; }
+  .salaJoinErr { color:#ff8080; font-size:12px; min-height:14px; }
+  .salaSection { font-size:13px; color:#9fb2cc; text-align:left; letter-spacing:.4px; margin-top:2px; }
+  #salaList { display:flex; flex-direction:column; gap:8px; text-align:left; }
+  .sListRow { background:rgba(22,34,50,.7); border:1px solid #2c3e55; border-radius:10px; padding:8px 10px;
+              display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .sListRow b { color:#ffd34d; font-size:13px; letter-spacing:1px; }
+  .sName { color:#e8eef7; font-size:12.5px; margin-left:6px; }
+  .sInfo { color:#8ea2bd; font-size:11px; }
+  .sListBtns { display:flex; gap:6px; }
+  .sEmpty { color:#8ea2bd; font-size:12px; text-align:center; padding:6px; }
+  .sCode { font-size:16px; letter-spacing:1px; }
+  .sCode b { color:#ffd34d; font-size:20px; }
+  .sCodeHint { display:block; font-size:10.5px; color:#8ea2bd; font-weight:400; }
+  .salaField { text-align:left; font-size:13px; color:#9fb2cc; }
+  .salaField input { width:100%; margin-top:4px; background:#162232; border:1px solid #384b66; border-radius:8px;
+                     color:#e8eef7; padding:9px 12px; font-size:14px; }
+  .salaField input:focus { outline:2px solid #2d7ff9; border-color:#2d7ff9; }
+  #salaPU { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  #salaPU .btn { min-width:96px; }
+  #salaPU .btn:not(.sel) { opacity:.38; text-decoration:line-through; }
+  input[type="range"] { width:100%; accent-color:#ffd34d; cursor:pointer; }
+  .salaBtnRow { display:flex; gap:10px; justify-content:center; }
+  .salaHint { font-size:11px; color:#8ea2bd; line-height:1.6; }
+  .sSave { color:#43d860; font-size:12px; margin-left:8px; }
 </style>
 </head>
 <body>
 <h1>⚽ FUTEBOL <span style="color:#ffd34d">2D</span> — Protótipo MVP</h1>
 <div id="hud">
-  <span class="score" id="s1">0</span><span style="color:#4da3ff;">VOCÊ</span>
+  <span class="score" id="s1">0</span><span style="color:#4da3ff;" id="lbl1">VOCÊ</span>
   <span class="timer" id="clock">3:00</span>
-  <span style="color:#ff5d5d;">IA</span><span class="score" id="s2">0</span>
+  <span style="color:#ff5d5d;" id="lbl2">IA</span><span class="score" id="s2">0</span>
 </div>
 <div id="powerups">
   <div class="pu empty" id="puSlot"><b>Q — Power</b>—</div>
   <div class="pu" id="puCd"><b>Efeito</b>—</div>
   <div class="pu" id="puKick"><b>Espaço</b>chute</div>
+</div>
+<div id="powerups2" class="hidden">
+  <div class="pu empty" id="p2Slot"><b>P2 Power</b>—</div>
+  <div class="pu" id="p2Cd"><b>Efeito P2</b>—</div>
+  <div class="pu" id="p2Kick"><b>Enter</b>chute</div>
 </div>
 <canvas id="cv" width="1072" height="608"></canvas>
 <div id="controls">
@@ -136,6 +182,10 @@
   <kbd>Espaço</kbd> tap = toque rápido / segurar = chute carregado ·
   <kbd>E</kbd> elástico (toque lateral) ·
   <kbd>Ctrl</kbd> plantar · <kbd>Q</kbd> ativar power-up
+</div>
+<div id="controlsSala" class="hidden">
+  <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> mover · <kbd>Espaço</kbd> chute · <kbd>E</kbd> elástico · <kbd>Ctrl</kbd> plantar · <kbd>Q</kbd> power = <b style="color:#4da3ff">P1 (azul)</b> &nbsp;|&nbsp;
+  <kbd>←↑↓→</kbd> mover · <kbd>Enter</kbd> chute · <kbd>Shift dir.</kbd> elástico · <kbd>Ctrl dir.</kbd> plantar · <kbd>/</kbd> power = <b style="color:#ff5d5d">P2 (vermelho)</b>
 </div>
 <div id="banner">⚽ A bola <b style="color:#4da3ff">gruda</b> em quem encostar primeiro (anel colorido no jogador) · Espaço chuta · Q usa power (Carrinho rouba com investida · Muralha defende o gol) · E rouba com elástico</div>
 
@@ -163,7 +213,45 @@
     </div>
   </div>
   <button class="btn big" id="startBtn">▶ Jogar contra IA</button>
+  <button class="btn ghost big" id="salaBtn">🏟️ 1v1 por Sala — local (código + editor)</button>
   <div class="mFoot">MVP em construção · 1v1 online, matchmaking, ELO e replays no roadmap</div>
+  </div>
+</div>
+
+<div id="salaScreen" class="hidden">
+  <div class="salaCard">
+    <!-- ===== HOME: criar / entrar / lista ===== -->
+    <div id="salaHome">
+      <div class="salaTitle">🏟️ SALAS — <span class="g">1v1 LOCAL</span></div>
+      <div class="salaSub">Crie uma sala com código e regras próprias · jogue 1v1 no mesmo teclado</div>
+      <button class="btn big" id="salaCreateBtn">➕ Criar nova sala</button>
+      <div class="joinRow">
+        <input id="salaCodeInput" maxlength="8" placeholder="Código (ex: S2D-A7K2)" autocomplete="off">
+        <button class="btn" id="salaJoinBtn">🔑 Entrar</button>
+      </div>
+      <div class="salaJoinErr" id="salaJoinErr"></div>
+      <div class="salaSection">📋 Salas salas neste dispositivo</div>
+      <div id="salaList"></div>
+      <button class="btn ghost" id="salaBack">☰ Voltar ao menu</button>
+    </div>
+    <!-- ===== EDITOR DA SALA ===== -->
+    <div id="salaEditor" style="display:none">
+      <div class="salaTitle">🛠️ EDITOR DA SALA</div>
+      <div class="sCode">CÓDIGO: <b id="salaCodeBig">—</b> <span class="sCodeHint">(passe p/ quem vai entrar pelo código)</span></div>
+      <label class="salaField">Nome da sala<br><input id="salaName" maxlength="24" autocomplete="off"></label>
+      <div class="salaSection">⚡ Power-ups permitidos <span id="salaSaveSt" class="sSave"></span></div>
+      <div id="salaPU"></div>
+      <div class="salaSection">⏱️ Duração: <b id="salaDurV" style="color:#ffd34d">3 min</b> (1–15)</div>
+      <input type="range" id="salaDur" min="1" max="15" value="3" step="1">
+      <div class="salaSection">🥅 Máx. de gols: <b id="salaGoalsV" style="color:#ffd34d">5</b> (1–15)</div>
+      <input type="range" id="salaGoals" min="1" max="15" value="5" step="1">
+      <button class="btn big" id="salaPlayBtn">▶ Jogar (1v1 nesta tela)</button>
+      <div class="salaBtnRow">
+        <button class="btn small" id="salaSaveBtn">💾 Salvar sala</button>
+        <button class="btn ghost small" id="salaBackE">☰ Voltar ao menu</button>
+      </div>
+      <div class="salaHint">P1: WASD · Espaço · E · Ctrl · Q &nbsp;||&nbsp; P2: setas · Enter · Shift dir. · Ctrl dir. · /</div>
+    </div>
   </div>
 </div>
 
@@ -204,6 +292,25 @@ const WALL_HW = 0.2, WALL_HH = 1.0;  // meia-largura (0,4 m) e meia-altura (2 m)
 const WALL_LIFE = 6;       // segundos de pé
 const MATCH_TIME = 180, GOALS_TO_WIN = 5;
 
+/* ================= SALAS: 1v1 LOCAL ================= */
+let mode = 'ia';                // 'ia' (treino) | 'sala' (1v1 local por sala)
+let sala = null;                // sala ativa {code,name,dur,goals,pus:{Foguete:true,...}}
+let goalLimit = GOALS_TO_WIN;   // limite de gols da partida (setado pela sala)
+const LS_SALAS = 'ft2d_salas_v1';
+function loadSalasDB(){ try { return JSON.parse(localStorage.getItem(LS_SALAS)) || {}; } catch(e){ return {}; } }
+function saveSalasDB(s){ try { localStorage.setItem(LS_SALAS, JSON.stringify(s||salasDB)); } catch(e){} }
+let salasDB = loadSalasDB();    // { 'S2D-A7K2': sala, ... }
+const PU_EMOJI = { 'Foguete':'🚀', 'Turbo':'💨', 'Carrinho':'🎯', 'Muralha':'🧱' };
+function allowedPU(){ return (mode==='sala' && sala) ? PU_TYPES.filter(t=>sala.pus[t]!==false) : PU_TYPES.slice(); }
+function genCode(){
+  const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c='';
+  do { c = 'S2D-' + Array.from({length:4},()=>A[Math.floor(Math.random()*A.length)]).join(''); }
+  while (salasDB[c]);
+  return c;
+}
+function normalizeCode(s){ return (s||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').trim(); }
+
 const PX = SCALE; // px por metro
 const OX = (1072 - FIELD_W*PX)/2, OY = (608 - FIELD_H*PX)/2; // offset do campo
 const mx = m => OX + m*PX, my = m => OY + m*PX;
@@ -214,12 +321,22 @@ const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 /* ================= INPUT ================= */
 const keys = {};
 addEventListener('keydown', e => {
-  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  const inInput = e.target && (e.target.tagName==='INPUT');
+  if (!inInput && ['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter'].includes(e.code)) e.preventDefault();
+  if (inInput && e.code!=='Enter'){ keys[e.code] = false; return; }  // digitando: não move/joga
   if (e.repeat) return;                      // ignora auto-repetição (Q não dispara vários shots)
   keys[e.code] = true;
+  const playing = gameState==='play' && kickoffPause<=0;
   if (e.code === 'KeyQ') usePower(me);
   if (e.code === 'KeyE') elastic(me);        // elástico: um toque por aperto de tecla
-  if (e.code === 'Space' && gameState==='play'){
+  if (mode==='sala'){                        // P2 (vermelho), mesmo teclado
+    if (e.code === 'Slash')      usePower(foe);
+    if (e.code === 'ShiftRight') elastic(foe);
+    if (e.code === 'Enter' && playing && !foe.charging && (touchingBall(foe) || ball.owner===foe)){
+      foe.charging = true; foe.kickChargeT = 0;
+    }
+  }
+  if (e.code === 'Space' && playing){
     // inicia a carga já no keydown → um "tap" rápido também chuta a bola grudada
     if (!me.charging && (touchingBall(me) || ball.owner===me)){ me.charging=true; me.kickChargeT=0; }
   }
@@ -228,6 +345,7 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => {
   keys[e.code] = false;
   if ((e.code === 'Space') && gameState==='play') releaseKick(me);
+  if ((e.code === 'Enter') && mode==='sala' && gameState==='play') releaseKick(foe);
 });
 addEventListener('blur', () => {  // janela perdeu foco: solta todas as teclas (evita tecla "presa")
   for (const k in keys) keys[k] = false;
@@ -236,9 +354,18 @@ addEventListener('blur', () => {  // janela perdeu foco: solta todas as teclas (
 // garante foco na janela/página ao clicar no canvas (evita "nada funciona")
 cv.addEventListener('mousedown', () => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
 function inputDir(pid){
-  const p = pid===0 ? {u:keys['KeyW']||keys['ArrowUp'], d:keys['KeyS']||keys['ArrowDown'],
-                       l:keys['KeyA']||keys['ArrowLeft'], r:keys['KeyD']||keys['ArrowRight']}
-                    : ai.inDir;
+  let p;
+  if (pid===0){
+    // em 1v1 local, WASD é exclusivo do P1 (setas passam a ser do P2)
+    p = mode==='sala'
+      ? { u:keys['KeyW'], d:keys['KeyS'], l:keys['KeyA'], r:keys['KeyD'] }
+      : { u:keys['KeyW']||keys['ArrowUp'], d:keys['KeyS']||keys['ArrowDown'],
+          l:keys['KeyA']||keys['ArrowLeft'], r:keys['KeyD']||keys['ArrowRight'] };
+  } else {
+    p = mode==='sala'
+      ? { u:keys['ArrowUp'], d:keys['ArrowDown'], l:keys['ArrowLeft'], r:keys['ArrowRight'] }
+      : ai.inDir;
+  }
   let x = (p.r?1:0) - (p.l?1:0), y = (p.d?1:0) - (p.u?1:0);
   const n = Math.hypot(x,y); return n? [x/n, y/n, n] : [0,0,0];
 }
@@ -262,7 +389,9 @@ const PU_COLOR = { 'Foguete':'#ff4d4d', 'Turbo':'#43d860', 'Carrinho':'#ffa03c',
 let pickups = []; // {x,y,type}
 let walls   = []; // muralhas: {x, y, hw, hh, life, max, owner}
 function spawnPickup(){
-  const t = PU_TYPES[Math.floor(Math.random()*PU_TYPES.length)];
+  const pool = allowedPU();
+  if (!pool.length) return;                 // sala com "nenhum poder": futebol puro
+  const t = pool[Math.floor(Math.random()*pool.length)];
   pickups.push({ x: 4+Math.random()*22, y: 2.5+Math.random()*11, type:t });
 }
 
@@ -448,7 +577,7 @@ function movePlayer(p, dt){
 function currentMaxSpeed(p){
   let m = MAX_SPD;
   if (p.turboT>0) m *= 1.4;
-  if (p.id===1) m *= AI_CFG[diff].spd;
+  if (p.id===1 && mode!=='sala') m *= AI_CFG[diff].spd;   // no 1v1 local, humano joga em full speed
   return m;
 }
 /* ================= MURALHA: colisões de jogadores ================= */
@@ -681,6 +810,10 @@ function usePower(p){
     if (p.id===0){
       const [ix,iy,n] = inputDir(0);
       if (n){ dx=ix; dy=iy; } else { dx=p.facing[0]; dy=p.facing[1]; }
+    } else if (mode==='sala'){
+      // P2 humano: investe na direção das setas dele (ou a que estiver virado)
+      const [ix,iy,n] = inputDir(1);
+      if (n){ dx=ix; dy=iy; } else { dx=p.facing[0]; dy=p.facing[1]; }
     } else {
       // IA: investe na direção da bola/adversário
       const tx = ball.x - p.x, ty = ball.y - p.y;
@@ -816,13 +949,15 @@ function goal(scorer){
   players[scorer].score++;
   updateScore();
   resetKickoff(scorer===0 ? 1 : 0);
-  if (players[scorer].score >= GOALS_TO_WIN){
-    if (scorer===0) showMsg('GOL! 🏆', 900);
+  if (players[scorer].score >= goalLimit){
+    showMsg('GOL! 🏆', 900);
     endMatch();
     return;
   }
   if (goldenGoal){ endMatch(); return; }
-  showMsg(scorer===0 ? 'GOL! ⚽' : 'Gol da IA 💀', 1100);
+  showMsg(scorer===0
+    ? (mode==='sala' ? 'GOL DO P1! ⚽' : 'GOL! ⚽')
+    : (mode==='sala' ? 'GOL DO P2! 💀' : 'Gol da IA 💀'), 1100);
   kickoffPause = 3;   // 3 s congelados com todos nos pontos de partida
 }
 function resetKickoff(lossSide){
@@ -836,18 +971,30 @@ function endMatch(){
   gameState='over';
   const a=me.score, b=foe.score;
   const title = document.getElementById('endTitle');
+  const sc = document.getElementById('endScore');
+  if (mode==='sala'){
+    title.textContent = a>b ? '🏆 P1 VENCEU!' : (b>a ? '🔥 P2 VENCEU!' : '🤝 EMPATE');
+    title.style.color = a>b ? '#4da3ff' : (b>a ? '#ff5d5d' : '#c9d6e8');
+    title.style.fontSize = a===b ? '38px' : '44px';
+    sc.textContent = a + ' – ' + b;
+    sc.style.color = a>b ? '#4da3ff' : (b>a ? '#ff5d5d' : '#c9d6e8');
+    document.getElementById('endSub').textContent =
+      'Sala ' + sala.code + ' · ' + sala.name + ' · ' + sala.dur + ' min · máx ' + goalLimit + ' gols' +
+      (goldenGoal ? ' · decidido no GOL DE OURO ⚡' : '');
+    document.getElementById('endScreen').classList.add('show');
+    return;
+  }
   const emojis = ['🏆','💔','🤝'];
   let ti = a>b ? 0 : (a<b ? 1 : 2);
   title.textContent = emojis[ti] + ' ' + (a>b?'VOCÊ VENCEU!':(a<b?'DERROTA…':'EMPATE'));
   title.style.color = a>b ? '#ffd34d' : (a<b ? '#ff5d5d' : '#c9d6e8');
   title.style.fontSize = a===b ? '38px' : '44px';
-  const sc = document.getElementById('endScore');
   sc.textContent = a + ' – ' + b;
   sc.style.color = a>b ? '#4da3ff' : (a<b ? '#ff5d5d' : '#c9d6e8');
   document.getElementById('endSub').textContent =
     'Treino vs IA · Dificuldade: ' + ['Fácil','Médio','Difícil'][diff] +
     (goldenGoal ? ' · decidido no GOL DE OURO ⚡' : '') +
-    (a>=GOALS_TO_WIN || b>=GOALS_TO_WIN ? ' · 5 gols' : ' · tempo esgotado');
+    (a>=goalLimit || b>=goalLimit ? ' · ' + goalLimit + ' gols' : ' · tempo esgotado');
   document.getElementById('endScreen').classList.add('show');
 }
 function rematch(){
@@ -857,7 +1004,8 @@ function rematch(){
 }
 function resetMatch(){
   me.score=0; foe.score=0; updateScore();
-  timeLeft = MATCH_TIME; goldenGoal=false; kickoffPause = 3;
+  timeLeft = (mode==='sala' && sala) ? Math.max(1, Math.round(sala.dur))*60 : MATCH_TIME;
+  goldenGoal=false; kickoffPause = 3;
   me.hasPower=null; foe.hasPower=null; me.rocket=false; foe.rocket=false;
   me.turboT=0; foe.turboT=0;
   me.cartState=0; foe.cartState=0; me.cartT=0; foe.cartT=0; me.slowT=0; foe.slowT=0;
@@ -875,9 +1023,10 @@ function updateClock(){
   document.getElementById('clock').textContent = Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
 }
 function updatePUHud(){
+  const p1 = mode==='sala' ? 'P1' : 'Q';
   const el = document.getElementById('puSlot');
-  if (me.hasPower){ el.classList.remove('empty'); el.innerHTML = '<b>Q — '+me.hasPower+'</b>'+(me.hasPower==='Foguete'?'próx. chute 1,8×':me.hasPower==='Turbo'?'+40% vel. (3s)':me.hasPower==='Carrinho'?'investida + stun (Q)':'defesa do gol (Q)'); }
-  else { el.classList.add('empty'); el.innerHTML = '<b>Q — Power</b>—'; }
+  if (me.hasPower){ el.classList.remove('empty'); el.innerHTML = '<b>'+p1+' — '+me.hasPower+'</b>'+(me.hasPower==='Foguete'?'próx. chute 1,8×':me.hasPower==='Turbo'?'+40% vel. (3s)':me.hasPower==='Carrinho'?'investida + stun (Q)':'defesa do gol (Q)'); }
+  else { el.classList.add('empty'); el.innerHTML = '<b>'+(mode==='sala'?'P1 (Q) — Power':'Q — Power')+'</b>—'; }
   const kd = document.getElementById('puCd');
   let eff = '—';
   if (me.cartState===1 || me.cartState===2) eff = 'CARRINHO!';
@@ -885,8 +1034,21 @@ function updatePUHud(){
   else if (me.rocket) eff = 'Foguete armado';
   else if (me.turboT>0) eff = 'Turbo '+me.turboT.toFixed(1)+'s';
   else if (walls.some(w=>w.life>0 && w.owner===0)) eff = 'Muralha de pé';
-  kd.innerHTML = '<b>Efeito</b>'+eff;
+  kd.innerHTML = '<b>'+(mode==='sala'?'P1 — Efeito':'Efeito')+'</b>'+eff;
   document.getElementById('puKick').innerHTML = '<b>Espaço</b>'+(me.charging? 'carga '+Math.round(Math.min(me.kickChargeT/CHARGE_TIME,1)*100)+'%' : 'chute');
+  if (mode!=='sala') return;
+  const el2 = document.getElementById('p2Slot');
+  if (foe.hasPower){ el2.classList.remove('empty'); el2.innerHTML = '<b>P2 — '+foe.hasPower+'</b>'+(foe.hasPower==='Foguete'?'próx. chute 1,8×':foe.hasPower==='Turbo'?'+40% vel. (3s)':foe.hasPower==='Carrinho'?'investida + stun (/)':'defesa do gol (/)'); }
+  else { el2.classList.add('empty'); el2.innerHTML = '<b>P2 (/) — Power</b>—'; }
+  const cd2 = document.getElementById('p2Cd');
+  let eff2 = '—';
+  if (foe.cartState===1 || foe.cartState===2) eff2 = 'CARRINHO!';
+  else if (foe.cartState===3) eff2 = 'carrinho: recuperando…';
+  else if (foe.rocket) eff2 = 'Foguete armado';
+  else if (foe.turboT>0) eff2 = 'Turbo '+foe.turboT.toFixed(1)+'s';
+  else if (walls.some(w=>w.life>0 && w.owner===1)) eff2 = 'Muralha de pé';
+  cd2.innerHTML = '<b>P2 — Efeito</b>'+eff2;
+  document.getElementById('p2Kick').innerHTML = '<b>Enter</b>'+(foe.charging? 'carga '+Math.round(Math.min(foe.kickChargeT/CHARGE_TIME,1)*100)+'%' : 'chute');
 }
 let msgTimer=null;
 function showMsg(t, ms){ const m=document.getElementById('msg'); m.textContent=t; m.classList.remove('hidden');
@@ -933,14 +1095,27 @@ function step(dt){
     const [ix,iy,n] = inputDir(0);
     if (n){ me.vx += ix*ACCEL*dt; me.vy += iy*ACCEL*dt; me.facing=[ix,iy]; }
   }
-  const holdingCtrl = keys['ControlLeft']||keys['ControlRight']||keys['Control'];
+  const holdingCtrl = (mode==='sala' ? (keys['ControlLeft']||keys['Control'])
+                                     : (keys['ControlLeft']||keys['ControlRight']||keys['Control']));
   me.planted = holdingCtrl && me.stunT<=0 && me.cartState===0;
   if (me.planted){ me.vx=0; me.vy=0; }
   // carga de chute (carrega enquanto Espaço pressionado — encostando ou com a bola grudada)
   if (keys['Space'] && (touchingBall(me) || ball.owner===me)){ me.charging=true; me.kickChargeT+=dt; }
   if (holdingCtrl){ me.charging=false; me.kickChargeT=0; }
-  // IA
-  aiThink(dt);
+  // P2 humano (1v1 local) OU IA (treino)
+  if (mode==='sala'){
+    const hCtrl2 = keys['ControlRight'];
+    if (!foe.planted && foe.stunT<=0 && foe.cartState!==1 && foe.cartState!==2){
+      const [ix,iy,n] = inputDir(1);
+      if (n){ foe.vx += ix*ACCEL*dt; foe.vy += iy*ACCEL*dt; foe.facing=[ix,iy]; }
+    }
+    foe.planted = hCtrl2 && foe.stunT<=0 && foe.cartState===0;
+    if (foe.planted){ foe.vx=0; foe.vy=0; }
+    if (keys['Enter'] && (touchingBall(foe) || ball.owner===foe)){ foe.charging=true; foe.kickChargeT+=dt; }
+    if (hCtrl2){ foe.charging=false; foe.kickChargeT=0; }
+  } else {
+    aiThink(dt);
+  }
   // movimento — a bola GRUDA em quem encostar nela primeiro (drible estilo Ball 2D)
   movePlayer(me, dt); movePlayer(foe, dt);
   if (ball.owner) carryBall(); else moveBall(dt);
@@ -960,7 +1135,7 @@ function step(dt){
       addShake(5, 0.22);
       ring(foe.x, foe.y, 'rgba(255,160,60,0.85)', 1.7, 0.32, 3);
       sparks(foe.x, foe.y, 12, '#ffa03c', 5, 2.6);
-      if (me.id===0) showMsg('🎯 Carrinho! IA atordoada por 1,5 s', 900);
+      if (me.id===0) showMsg('🎯 Carrinho! ' + (mode==='sala' ? 'P2 atordoado por 1,5 s' : 'IA atordoada por 1,5 s'), 900);
     } else if (carting(foe) && !carting(me)){
       me.vx += foe.cartDir[0]*CART_KNOCK; me.vy += foe.cartDir[1]*CART_KNOCK;
       me.stunT = CART_STUN; me.planted = false; me.cartState=0; me.cartT=0; me.slowT=0;
@@ -969,7 +1144,7 @@ function step(dt){
       addShake(5, 0.22);
       ring(me.x, me.y, 'rgba(255,160,60,0.85)', 1.7, 0.32, 3);
       sparks(me.x, me.y, 12, '#ffa03c', 5, 2.6);
-      if (foe.id===1) showMsg('💀 A IA acertou o carrinho! Você está atordoado', 1100);
+      if (foe.id===1) showMsg('💀 ' + (mode==='sala' ? 'Carrinho do P2! P1 atordoado por 1,5 s' : 'A IA acertou o carrinho! Você está atordoado'), 1100);
     } else if (carting(me) && carting(foe)){
       // dois carrinhos de frente: batida forte dos dois lados
       me.vx -= foe.cartDir[0]*8; me.vy -= foe.cartDir[1]*8;
@@ -1016,6 +1191,8 @@ function step(dt){
         addShake(1.2, 0.08);
         if (p.id===0){
           showMsg('⭐ '+pk.type+' pegue! Aperte Q para ativar', 1500);
+        } else if (mode==='sala'){
+          showMsg('⭐ P2 pegou '+pk.type+'! Aperte / para ativar', 1500);
         }
       }
     }
@@ -1199,7 +1376,7 @@ function render(time){
     ctx.lineTo(mx(p.x+p.facing[0]*(p.r+0.35)),my(p.y+p.facing[1]*(p.r+0.35))); ctx.stroke();
     // etiqueta do jogador
     ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.font='bold 9px sans-serif'; ctx.textAlign='center';
-    ctx.fillText(p.id===0?'VOCÊ':'IA', mx(p.x), my(p.y-p.r-5));
+    ctx.fillText(mode==='sala' ? (p.id===0?'P1':'P2') : (p.id===0?'VOCÊ':'IA'), mx(p.x), my(p.y-p.r-5));
     // badge do foguete armado: mini-foguete flutuando acima da cabeça + anel vermelho
     if (p.rocket){
       const bob = Math.sin(time*4)*1.5;
@@ -1259,10 +1436,135 @@ document.getElementById('startBtn').onclick = startBtn;
 document.getElementById('rematchBtn').onclick = rematch;
 document.getElementById('menuBtn').onclick = ()=>{
   document.getElementById('endScreen').classList.remove('show');
-  hideMsg(); resetMatch();
+  hideMsg(); restoreMode(); resetMatch();
   gameState = 'menu';
   menuEl.classList.remove('hidden');
 };
+
+/* ================= SALAS: UI E FLUXO ================= */
+const salaEl = document.getElementById('salaScreen');
+function restoreMode(){
+  mode='ia'; sala=null; goalLimit=GOALS_TO_WIN;
+  document.getElementById('lbl1').textContent = 'VOCÊ';
+  document.getElementById('lbl2').textContent = 'IA';
+  document.getElementById('powerups2').classList.add('hidden');
+  document.getElementById('controlsSala').classList.add('hidden');
+}
+function openSala(){
+  salaEl.classList.remove('hidden');
+  showSalaHome();
+}
+function closeSala(){ salaEl.classList.add('hidden'); }
+function showSalaHome(){
+  document.getElementById('salaHome').style.display = '';
+  document.getElementById('salaEditor').style.display = 'none';
+  document.getElementById('salaJoinErr').textContent = '';
+  document.getElementById('salaCodeInput').value = '';
+  renderSalaList();
+}
+function renderSalaList(){
+  const el = document.getElementById('salaList');
+  const codes = Object.keys(salasDB);
+  if (!codes.length){
+    el.innerHTML = '<div class="sEmpty">Nenhuma sala salva ainda — crie a primeira! 🏟️</div>';
+    return;
+  }
+  el.innerHTML = codes.map(c=>{
+    const s = salasDB[c];
+    const pus = PU_TYPES.filter(t=>s.pus[t]!==false).map(t=>PU_EMOJI[t]).join(' ') || '—';
+    return '<div class="sListRow"><div><b>'+c+'</b><span class="sName">'+String(s.name||'').replace(/[<>&]/g,'')+'</span><br>'+
+           '<span class="sInfo">'+s.dur+' min · '+s.goals+' gols · poderes: '+pus+'</span></div>'+
+           '<div class="sListBtns">'+
+           '<button class="btn small" data-play="'+c+'" title="Jogar">▶</button>'+
+           '<button class="btn ghost small" data-edit="'+c+'" title="Editar">🛠</button>'+
+           '<button class="btn ghost small" data-del="'+c+'" title="Excluir">🗑</button>'+
+           '</div></div>';
+  }).join('');
+  el.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>{ sala = JSON.parse(JSON.stringify(salasDB[b.dataset.play])); salaPlay(); });
+  el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{ sala = JSON.parse(JSON.stringify(salasDB[b.dataset.edit])); showEditor(); });
+  el.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ delete salasDB[b.dataset.del]; saveSalasDB(); renderSalaList(); });
+}
+function newSala(){
+  sala = { code:genCode(), name:'Sala sem nome', dur:3, goals:5,
+           pus:{ 'Foguete':true, 'Turbo':true, 'Carrinho':true, 'Muralha':true } };
+  showEditor();
+}
+function showEditor(){
+  document.getElementById('salaHome').style.display = 'none';
+  document.getElementById('salaEditor').style.display = '';
+  document.getElementById('salaJoinErr').textContent = '';
+  document.getElementById('salaCodeBig').textContent = sala.code;
+  document.getElementById('salaName').value = sala.name || '';
+  const box = document.getElementById('salaPU');
+  box.innerHTML = '';
+  for (const k of PU_TYPES){
+    const b = document.createElement('button');
+    b.className = 'btn small' + (sala.pus[k]!==false ? ' sel' : '');
+    b.textContent = PU_EMOJI[k] + ' ' + k;
+    b.onclick = ()=>{ sala.pus[k] = (sala.pus[k]===false); refreshEditor(); };
+    box.appendChild(b);
+  }
+  refreshEditor();
+}
+function refreshEditor(){
+  document.getElementById('salaDurV').textContent = sala.dur + ' min';
+  document.getElementById('salaGoalsV').textContent = sala.goals;
+  const box = document.getElementById('salaPU');
+  PU_TYPES.forEach((t,i)=>{
+    const b = box.children[i];
+    b.className = 'btn small' + (sala.pus[t]!==false ? ' sel' : '');
+  });
+}
+function collectEditor(){
+  sala.name = document.getElementById('salaName').value.trim() || 'Sala sem nome';
+  sala.dur = +document.getElementById('salaDur').value;
+  sala.goals = +document.getElementById('salaGoals').value;
+}
+function saveSalaNow(){
+  collectEditor();
+  salasDB[sala.code] = JSON.parse(JSON.stringify(sala));
+  saveSalasDB();
+  const st = document.getElementById('salaSaveSt');
+  st.textContent = ' SALVA ✔';
+  setTimeout(()=>{ st.textContent = ''; }, 1400);
+}
+function salaPlay(){
+  closeSala();
+  showSplash(startSalaMatch);
+}
+function startSalaMatch(){
+  if (!sala) return;
+  mode = 'sala';
+  goalLimit = sala.goals;
+  document.getElementById('lbl1').textContent = 'P1';
+  document.getElementById('lbl2').textContent = 'P2';
+  document.getElementById('powerups2').classList.remove('hidden');
+  document.getElementById('controlsSala').classList.remove('hidden');
+  menuEl.classList.add('hidden');
+  document.getElementById('endScreen').classList.remove('show');
+  hideMsg();
+  resetMatch();
+  gameState = 'play';
+  showMsg('SALA ' + sala.code.toUpperCase() + ' — VALEU! ⚡', 1600);
+}
+document.getElementById('salaBtn').onclick = openSala;
+document.getElementById('salaCreateBtn').onclick = newSala;
+document.getElementById('salaSaveBtn').onclick = saveSalaNow;
+document.getElementById('salaPlayBtn').onclick = salaPlay;
+document.getElementById('salaBack').onclick = closeSala;
+document.getElementById('salaBackE').onclick = closeSala;
+document.getElementById('salaDur').oninput = ()=>{ sala.dur = +document.getElementById('salaDur').value; refreshEditor(); };
+document.getElementById('salaGoals').oninput = ()=>{ sala.goals = +document.getElementById('salaGoals').value; refreshEditor(); };
+document.getElementById('salaJoinBtn').onclick = ()=>{
+  const c = normalizeCode(document.getElementById('salaCodeInput').value);
+  const err = document.getElementById('salaJoinErr');
+  if (!c){ err.textContent = 'Digite o código da sala.'; return; }
+  if (salasDB[c]){ sala = JSON.parse(JSON.stringify(salasDB[c])); showEditor(); }
+  else { err.textContent = 'Sala "' + c + '" não encontrada (as salas ficam salvas neste dispositivo).'; }
+};
+document.getElementById('salaCodeInput').addEventListener('keydown', e=>{
+  if (e.code==='Enter') document.getElementById('salaJoinBtn').click();
+});
 updateClock(); updateScore(); updatePUHud();
 
 // ================= TELA DE INICIALIZAÇÃO (SPLASH 5s) =================

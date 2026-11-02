@@ -33,7 +33,8 @@ O núcleo (bola, chute, defesa) é o de sempre; o diferencial é a profundidade 
 1. 1v1 online (servidor autoritativo).
 2. Treino vs IA (3 dificuldades).
 3. Sala por código + quick match simples.
-4. Conta convidada (apelido).
+4. **1v1 local por sala (código + editor: poderes permitidos, duração até 15 min, gols até 15) — já implementado ✔.**
+5. Conta convidada (apelido).
 5. HUD, placar, kickoff, fim de partida, revanche.
 6. Replay (últimos 10 s), stats básicas, leaderboard/ELO, ajustes, tutorial.
 
