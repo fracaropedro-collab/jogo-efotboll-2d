@@ -143,9 +143,13 @@
   .sInfo { color:#8ea2bd; font-size:11px; }
   .sListBtns { display:flex; gap:6px; }
   .sEmpty { color:#8ea2bd; font-size:12px; text-align:center; padding:6px; }
-  .sCode { font-size:16px; letter-spacing:1px; }
-  .sCode b { color:#ffd34d; font-size:20px; }
-  .sCodeHint { display:block; font-size:10.5px; color:#8ea2bd; font-weight:400; }
+  .salaCodeCard { background:rgba(255,211,77,.10); border:2px solid #ffd34d; border-radius:12px;
+                  padding:14px 16px; margin:8px 0 10px; text-align:center; }
+  .salaCodeLabel { font-size:12px; color:#ffd34d; letter-spacing:.5px; display:block; margin-bottom:6px; }
+  .salaCodeRow { display:flex; align-items:center; justify-content:center; gap:8px; }
+  .salaCodeRow b { font-size:22px; letter-spacing:2px; color:#fff; }
+  .salaCodeHint { display:block; font-size:11px; color:#8ea2bd; margin-top:4px; }
+  #salaCopyBtn { min-width:110px; }
   .salaField { text-align:left; font-size:13px; color:#9fb2cc; }
   .salaField input { width:100%; margin-top:4px; background:#162232; border:1px solid #384b66; border-radius:8px;
                      color:#e8eef7; padding:9px 12px; font-size:14px; }
@@ -237,7 +241,11 @@
     <!-- ===== EDITOR DA SALA ===== -->
     <div id="salaEditor" style="display:none">
       <div class="salaTitle">🛠️ EDITOR DA SALA</div>
-      <div class="sCode">CÓDIGO: <b id="salaCodeBig">—</b> <span class="sCodeHint">(passe p/ quem vai entrar pelo código)</span></div>
+      <div class="salaCodeCard">
+        <div class="salaCodeLabel">CÓDIGO DA SALA — passe para quem vai entrar</div>
+        <div class="salaCodeRow"><b id="salaCodeBig">—</b><button class="btn small" id="salaCopyBtn">📋 Copiar</button></div>
+        <span class="salaCodeHint">Salas ficam salvas neste dispositivo (localStorage)</span>
+      </div>
       <label class="salaField">Nome da sala<br><input id="salaName" maxlength="24" autocomplete="off"></label>
       <div class="salaSection">⚡ Power-ups permitidos <span id="salaSaveSt" class="sSave"></span></div>
       <div id="salaPU"></div>
@@ -1553,6 +1561,10 @@ document.getElementById('salaSaveBtn').onclick = saveSalaNow;
 document.getElementById('salaPlayBtn').onclick = salaPlay;
 document.getElementById('salaBack').onclick = closeSala;
 document.getElementById('salaBackE').onclick = closeSala;
+document.getElementById('salaCopyBtn').onclick = async ()=>{
+  const code = document.getElementById('salaCodeBig').textContent;
+  try{ await navigator.clipboard.writeText(code); showMsg('Código copiado: '+code, 1400); }catch(e){ prompt('Copia o código:', code); }
+};
 document.getElementById('salaDur').oninput = ()=>{ sala.dur = +document.getElementById('salaDur').value; refreshEditor(); };
 document.getElementById('salaGoals').oninput = ()=>{ sala.goals = +document.getElementById('salaGoals').value; refreshEditor(); };
 document.getElementById('salaJoinBtn').onclick = ()=>{
