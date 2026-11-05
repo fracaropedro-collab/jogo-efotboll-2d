@@ -1,6 +1,6 @@
 # Futebol 2D Online
 
-▶ **JOGUE AGORA NO NAVEGADOR:** https://fracaropedro-collab.github.io/jogo-efotboll-2d/ ⚽
+▶ **JOGUE AGORA NO NAVEGADOR:** /tmp/opencode/repo-efotboll/index.html ⚽
 
 ---
 
