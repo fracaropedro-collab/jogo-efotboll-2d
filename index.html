@@ -257,8 +257,13 @@
               border:1px solid rgba(255,255,255,.14); box-shadow:0 22px 60px rgba(0,0,0,.5); }
   .salaTitle { font-size:24px; font-weight:800; letter-spacing:1.5px; }
   .salaTitle .g { color:#ffd34d; }
-  .salaSub { color:#9fb2cc; font-size:12.5px; margin-top:-6px; }
+  .salaField { text-align:left; font-size:13px; color:#9fb2cc; }
+  .salaField input { width:100%; margin-top:4px; background:#162232; border:1px solid #384b66; border-radius:8px;
+                     color:#e8eef7; padding:9px 12px; font-size:14px; }
+  .salaField input:focus { outline:2px solid #2d7ff9; border-color:#2d7ff9; }
   .joinRow { display:flex; gap:8px; }
+  /* botão Criar desgrudado da linha de código/Entrar */
+  #salaCreateBtn { margin-top:10px; margin-bottom:14px; }
   .joinRow input { flex:1; background:#162232; border:1px solid #384b66; border-radius:8px; color:#e8eef7;
                    padding:10px 12px; font-size:14px; text-transform:uppercase; letter-spacing:1px; }
   .joinRow input:focus { outline:2px solid #2d7ff9; border-color:#2d7ff9; }
@@ -279,16 +284,9 @@
   .salaCodeRow b { font-size:22px; letter-spacing:2px; color:#fff; }
   .salaCodeHint { display:block; font-size:11px; color:#8ea2bd; margin-top:4px; }
   #salaCopyBtn { min-width:110px; }
-  .salaField { text-align:left; font-size:13px; color:#9fb2cc; }
-  .salaField input { width:100%; margin-top:4px; background:#162232; border:1px solid #384b66; border-radius:8px;
-                     color:#e8eef7; padding:9px 12px; font-size:14px; }
-  .salaField input:focus { outline:2px solid #2d7ff9; border-color:#2d7ff9; }
-  #salaPU { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
-  #salaPU .btn { min-width:96px; }
-  #salaPU .btn:not(.sel) { opacity:.38; text-decoration:line-through; }
   input[type="range"] { width:100%; accent-color:#ffd34d; cursor:pointer; }
-  .salaBtnRow { display:flex; gap:10px; justify-content:center; }
-  .salaHint { font-size:11px; color:#8ea2bd; line-height:1.6; }
+  /* botões da base do editor: espaçados do bloco de cima e entre si */
+  .salaBtnRow { display:flex; gap:16px; justify-content:center; margin-top:14px; }
   .sSave { color:#43d860; font-size:12px; margin-left:8px; }
 </style>
 </head>
@@ -354,28 +352,24 @@
     <!-- ===== HOME: criar / entrar / lista ===== -->
     <div id="salaHome">
       <div class="salaTitle">🏟️ SALAS — <span class="g">1v1 LOCAL</span></div>
-      <div class="salaSub">Crie uma sala com código e regras próprias · jogue 1v1 no mesmo teclado</div>
       <button class="btn big" id="salaCreateBtn">➕ Criar nova sala</button>
       <div class="joinRow">
         <input id="salaCodeInput" maxlength="8" placeholder="Código (ex: S2D-A7K2)" autocomplete="off">
         <button class="btn" id="salaJoinBtn">🔑 Entrar</button>
       </div>
       <div class="salaJoinErr" id="salaJoinErr"></div>
-      <div class="salaSection">📋 Salas salas neste dispositivo</div>
       <div id="salaList"></div>
       <button class="btn ghost" id="salaBack">☰ Voltar ao menu</button>
     </div>
     <!-- ===== EDITOR DA SALA ===== -->
     <div id="salaEditor" style="display:none">
-      <div class="salaTitle">🛠️ EDITOR DA SALA</div>
+      <div class="salaTitle">🛠️ EDITOR DA SALA <span id="salaSaveSt" class="sSave"></span></div>
       <div class="salaCodeCard">
         <div class="salaCodeLabel">CÓDIGO DA SALA — passe para quem vai entrar</div>
         <div class="salaCodeRow"><b id="salaCodeBig">—</b><button class="btn small" id="salaCopyBtn">📋 Copiar</button></div>
         <span class="salaCodeHint">Salas ficam salvas neste dispositivo (localStorage)</span>
       </div>
       <label class="salaField">Nome da sala<br><input id="salaName" maxlength="24" autocomplete="off"></label>
-      <div class="salaSection">⚡ Power-ups permitidos <span id="salaSaveSt" class="sSave"></span></div>
-      <div id="salaPU"></div>
       <div class="salaSection">⏱️ Duração: <b id="salaDurV" style="color:#ffd34d">3 min</b> (1–15)</div>
       <input type="range" id="salaDur" min="1" max="15" value="3" step="1">
       <div class="salaSection">🥅 Máx. de gols: <b id="salaGoalsV" style="color:#ffd34d">5</b> (1–15)</div>
@@ -385,7 +379,6 @@
         <button class="btn small" id="salaSaveBtn">💾 Salvar sala</button>
         <button class="btn ghost small" id="salaBackE">☰ Voltar ao menu</button>
       </div>
-      <div class="salaHint">P1: WASD · Espaço · E · Ctrl · Q &nbsp;||&nbsp; P2: setas · Enter · Shift dir. · Ctrl dir. · /</div>
     </div>
   </div>
 </div>
@@ -519,16 +512,50 @@ function inputDir(pid){
 }
 
 /* ================= ENTIDADES ================= */
+/* ---- visual: tons de pele e de cabelo (claro, médio e escuro) ---- */
+const SKIN_TONES = [
+  { name:'clara',   base:'#f2c9a3', shade:'#d8a67a' },
+  { name:'média',   base:'#c98f63', shade:'#a56f47' },
+  { name:'escura',  base:'#8a5838', shade:'#6a3f27' },
+  { name:'retinta', base:'#5d3823', shade:'#442514' }
+];
+const HAIR_TONES = [
+  { name:'preto',    base:'#17151a', light:'#43404d' },
+  { name:'castanho', base:'#54331f', light:'#8a5734' },
+  { name:'loiro',    base:'#d8ad57', light:'#f3d386' },
+  { name:'ruivo',    base:'#a3451d', light:'#d17640' },
+  { name:'grisalho', base:'#8e959e', light:'#c9cfd6' }
+];
+/* cores do uniforme de cada time (ombros) — P1 azul, P2 vermelho */
+const TEAM_KIT = [
+  { main:'#4da3ff', dark:'#1f5b94', light:'#9dd2ff', trim:'#eaf5ff' },
+  { main:'#ff5d5d', dark:'#9d2b2b', light:'#ffaaaa', trim:'#fff0f0' }
+];
+
 function makePlayer(id, x, y){
   return { id, x, y, vx:0, vy:0, r:PLAYER_R, mass:1,
            kickChargeT:0, charging:false,
            cartState:0 /* 0 nada · 1 arranque · 2 investida · 3 recuperando */, cartT:0, cartDir:[id===0?1:-1,0], slowT:0,
            planted:false, stunT:0, turboT:0, rocket:false, hitFxT:0,
-           hasPower:null, lastTouchT:0, facing:[id===0?1:-1,0], score:0 };
+           hasPower:null, lastTouchT:0, facing:[id===0?1:-1,0], score:0,
+           skin:null, hair:null };
 }
 const me   = makePlayer(0, 7, 8);
 const foe  = makePlayer(1, 23, 8);
 const players = [me, foe];
+
+/* sorteia aparências diferentes para os jogadores (renovadas a cada partida) */
+function pickTone(list, avoid){
+  const pool = avoid ? list.filter(t => t !== avoid) : list;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+function rollAppearances(){
+  me.skin  = pickTone(SKIN_TONES);
+  foe.skin = pickTone(SKIN_TONES, me.skin);
+  me.hair  = pickTone(HAIR_TONES);
+  foe.hair = pickTone(HAIR_TONES, me.hair);
+}
+rollAppearances();
 const ball = { x:15, y:8, vx:0, vy:0, r:BALL_R, lastKicker:null, afterT:0, owner:null, noStealT:0, flameT:0 };
 
 /* ================= POWER-UPS ================= */
@@ -669,9 +696,9 @@ let diff = 1;
    Médio: competitivo. Difícil: perto do limite humano, usa poderes na hora certa.
    puP = chance de usar um power-up por decisão; powerCd = pausa entre usos. */
 const AI_CFG = [
-  { delay:0.38, err:24*Math.PI/180, spd:0.68, kickPow:7,   puP:0.12, kickChance:0.6  }, // Fácil
-  { delay:0.18, err: 9*Math.PI/180, spd:0.90, kickPow:10,  puP:0.55, kickChance:0.85 }, // Médio
-  { delay:0.09, err: 3*Math.PI/180, spd:1.00, kickPow:11.5,puP:0.95, kickChance:1    }, // Difícil
+  { delay:0.38, err:24*Math.PI/180, spd:0.68, kickPow:7,    puP:0.12, kickChance:0.6  }, // Fácil (mais suave que o plano, por decisão)
+  { delay:0.15, err: 7*Math.PI/180, spd:0.92, kickPow:10,   puP:0.55, kickChance:0.85 }, // Médio = plano (150 ms · ±7° · 92%)
+  { delay:0.08, err: 2*Math.PI/180, spd:1.00, kickPow:11.5, puP:0.95, kickChance:1    }, // Difícil = plano (80 ms · ±2° · 100%)
 ];
 const DIFF_NAMES = ['Fácil','Médio','Difícil'];
 const ai = { mode:'chase', thinkT:0, inDir:{u:0,d:0,l:0,r:0}, wantKick:false, holdKickT:0 };
@@ -1164,6 +1191,7 @@ function resetMatch(){
   walls = [];
   pickups=[]; spawnPickup(); spawnPickup();
   ball.owner=null; ball.noStealT=0;
+  rollAppearances();               // nova partida: nova combinação de pele/cabelo
   resetKickoff(0); updatePUHud();
 }
 
@@ -1374,6 +1402,51 @@ function loop(t){
   updateClock(); if (gameState==='play') updatePUHud();
 }
 
+/* ================= VISUAL DOS JOGADORES ================= */
+/* Design clássico: círculo na cor do time (azul/vermelho) com risco branco
+   indicando o lado da frente (direção do facing). */
+function drawPlayerBody(p, time){
+  const R = p.r*PX;
+  const ang = Math.atan2(p.facing[1], p.facing[0]);
+  const body = p.id===0 ? '#4da3ff' : '#ff5d5d';
+  const dark = p.id===0 ? '#2f7fd9' : '#d94a4a';
+
+  ctx.save();
+  ctx.translate(mx(p.x), my(p.y));
+
+  // sombra suave no gramado
+  ctx.fillStyle = 'rgba(6,16,12,0.30)';
+  ctx.beginPath();
+  ctx.ellipse(R*0.12, R*0.54, R*0.92, R*0.42, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // aura do turbo (fica atrás do corpo)
+  if (p.turboT > 0){
+    const k = 0.16 + 0.10*Math.sin(time*9);
+    ctx.fillStyle = p.id===0 ? 'rgba(127,208,255,'+k+')' : 'rgba(255,157,157,'+k+')';
+    ctx.beginPath(); ctx.arc(0, 0, R*1.55, 0, Math.PI*2); ctx.fill();
+  }
+
+  ctx.rotate(ang);   // +x local = direção para onde o jogador olha
+
+  // círculo do jogador na cor do time
+  ctx.fillStyle = body;
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = dark; ctx.lineWidth = Math.max(1.2, R*0.16);
+  ctx.stroke();
+
+  // risco branco indicando a FRENTE (direção que aponta)
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = Math.max(1.6, R*0.22);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(R*0.30, 0);
+  ctx.lineTo(R*0.86, 0);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 /* ================= RENDER ================= */
 function render(time){
   ctx.fillStyle='#14242e'; ctx.fillRect(0,0,1072,608);
@@ -1506,17 +1579,19 @@ function render(time){
   // jogadores
   for (const p of players){
     ctx.save();
-    if (p.planted) { ctx.strokeStyle='#ffd34d'; ctx.lineWidth=3; }
-    ctx.fillStyle = p.id===0 ? '#4da3ff' : '#ff5d5d';
-    // turbo: aura
-    if (p.turboT>0){ ctx.fillStyle = p.id===0?'#7fd0ff':'#ff9d9d'; }
     // carrinho em investida: arco de impacto na direção da barrida
     if (p.cartState===2){
       const ang = Math.atan2(p.cartDir[1], p.cartDir[0]);
       ctx.strokeStyle='rgba(255,160,60,0.9)'; ctx.lineWidth=3.2;
       ctx.beginPath(); ctx.arc(mx(p.x),my(p.y),p.r*PX+6, ang-1.0, ang+1.0); ctx.stroke();
     }
-    ctx.beginPath(); ctx.arc(mx(p.x),my(p.y),p.r*PX,0,7); ctx.fill(); ctx.stroke();
+    // corpo: ombros nas cores do time + cabeça/rosto limpo + cabelo
+    drawPlayerBody(p, time);
+    // plantado: anel dourado ao redor do jogador
+    if (p.planted){
+      ctx.strokeStyle='#ffd34d'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(mx(p.x),my(p.y),p.r*PX+2,0,7); ctx.stroke();
+    }
     // flash branco ao levar carrinho/impacto
     if (p.hitFxT>0){
       ctx.globalAlpha = Math.max(0,p.hitFxT/0.35);
@@ -1524,13 +1599,9 @@ function render(time){
       ctx.beginPath(); ctx.arc(mx(p.x),my(p.y),p.r*PX+3,0,7); ctx.stroke();
       ctx.globalAlpha = 1;
     }
-    // direção
-    ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(mx(p.x),my(p.y));
-    ctx.lineTo(mx(p.x+p.facing[0]*(p.r+0.35)),my(p.y+p.facing[1]*(p.r+0.35))); ctx.stroke();
     // etiqueta do jogador
     ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.font='bold 9px sans-serif'; ctx.textAlign='center';
-    ctx.fillText(mode==='sala' ? (p.id===0?'P1':'P2') : (p.id===0?'VOCÊ':'IA'), mx(p.x), my(p.y-p.r-5));
+    ctx.fillText(mode==='sala' ? (p.id===0?'P1':'P2') : (p.id===0?'VOCÊ':'IA'), mx(p.x), my(p.y) - p.r*PX - 7);
     // badge do foguete armado: mini-foguete flutuando acima da cabeça + anel vermelho
     if (p.rocket){
       const bob = Math.sin(time*4)*1.5;
@@ -1538,8 +1609,8 @@ function render(time){
       ctx.beginPath(); ctx.arc(mx(p.x),my(p.y),p.r*PX+5,0,7); ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle='rgba(12,20,32,0.8)';
-      ctx.beginPath(); ctx.arc(mx(p.x), my(p.y-p.r-9)+bob, 8, 0, 7); ctx.fill();
-      drawPUIcon('Foguete', mx(p.x), my(p.y-p.r-9)+bob, 8);
+      ctx.beginPath(); ctx.arc(mx(p.x), my(p.y) - p.r*PX - 27 + bob, 8, 0, 7); ctx.fill();
+      drawPUIcon('Foguete', mx(p.x), my(p.y) - p.r*PX - 27 + bob, 8);
     }
     // carga
     if (p.charging && p.kickChargeT>0){
@@ -1666,25 +1737,11 @@ function showEditor(){
   document.getElementById('salaJoinErr').textContent = '';
   document.getElementById('salaCodeBig').textContent = sala.code;
   document.getElementById('salaName').value = sala.name || '';
-  const box = document.getElementById('salaPU');
-  box.innerHTML = '';
-  for (const k of PU_TYPES){
-    const b = document.createElement('button');
-    b.className = 'btn small' + (sala.pus[k]!==false ? ' sel' : '');
-    b.textContent = PU_EMOJI[k] + ' ' + k;
-    b.onclick = ()=>{ sala.pus[k] = (sala.pus[k]===false); refreshEditor(); };
-    box.appendChild(b);
-  }
   refreshEditor();
 }
 function refreshEditor(){
   document.getElementById('salaDurV').textContent = sala.dur + ' min';
   document.getElementById('salaGoalsV').textContent = sala.goals;
-  const box = document.getElementById('salaPU');
-  PU_TYPES.forEach((t,i)=>{
-    const b = box.children[i];
-    b.className = 'btn small' + (sala.pus[t]!==false ? ' sel' : '');
-  });
 }
 function collectEditor(){
   sala.name = document.getElementById('salaName').value.trim() || 'Sala sem nome';
