@@ -288,6 +288,42 @@
   /* botões da base do editor: espaçados do bloco de cima e entre si */
   .salaBtnRow { display:flex; gap:16px; justify-content:center; margin-top:14px; }
   .sSave { color:#43d860; font-size:12px; margin-left:8px; }
+
+  /* ---------- CONTA: login + perfil ---------- */
+  #login, #profile { position:fixed; inset:0; z-index:20; display:flex; align-items:center;
+                     justify-content:center; padding:16px; }
+  #login.hidden, #profile.hidden { display:none; }
+  #menu.authMode .mCard { visibility:hidden; }
+  .authCard { width:min(400px, 92vw); max-height:92vh; overflow-y:auto; display:flex; flex-direction:column;
+              align-items:center; gap:12px; padding:24px 26px 22px; border-radius:18px; text-align:center;
+              background:linear-gradient(180deg, rgba(9,16,30,.84), rgba(9,16,30,.72));
+              backdrop-filter:blur(16px) saturate(1.15); -webkit-backdrop-filter:blur(16px) saturate(1.15);
+              border:1px solid rgba(255,255,255,.15); box-shadow:0 22px 60px rgba(0,0,0,.5); }
+  .authTitle { font-size:22px; font-weight:800; letter-spacing:1.4px; }
+  .authSub { color:#9fb2cc; font-size:12.5px; margin-top:-4px; }
+  .authTabs { display:flex; gap:8px; width:100%; }
+  .authTab { flex:1; padding:9px 10px; border-radius:10px; border:2px solid rgba(255,255,255,.14);
+             background:rgba(22,34,50,.6); color:#9fb2cc; font:inherit; font-weight:700; font-size:12.5px;
+             cursor:pointer; transition:border-color .16s, background .16s, color .16s; }
+  .authTab.sel { border-color:#2fae5f; color:#fff;
+                 background:linear-gradient(180deg, rgba(47,174,95,.34), rgba(31,138,71,.14)); }
+  .authField { width:100%; text-align:left; font-size:12.5px; color:#9fb2cc; }
+  .authField input { width:100%; margin-top:4px; background:#162232; border:1px solid #384b66; border-radius:9px;
+                     color:#e8eef7; padding:10px 12px; font-size:14px; }
+  .authField input:focus { outline:2px solid #2d7ff9; border-color:#2d7ff9; }
+  .authErr { min-height:16px; font-size:12px; color:#ff8080; }
+  .authLabel { width:100%; text-align:left; font-size:12.5px; color:#9fb2cc; margin-top:2px; }
+  .avatarRow, .styleRow { display:flex; gap:10px; width:100%; justify-content:center; }
+  .avatarOpt, .styleOpt { width:86px; display:flex; flex-direction:column; align-items:center; gap:5px;
+                          padding:8px 4px; border-radius:12px; border:2px solid rgba(255,255,255,.14);
+                          background:rgba(22,34,50,.55); color:#c9d6e8; font:inherit; font-size:11px;
+                          cursor:pointer; transition:border-color .16s, box-shadow .16s, color .16s; }
+  .avatarOpt.sel, .styleOpt.sel { border-color:#ffd34d; color:#fff;
+                                  box-shadow:0 0 0 2px rgba(255,211,77,.25); }
+  .avatarPic { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+               font-size:24px; background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.28), rgba(10,20,34,.92));
+               border:2px solid #4da3ff; }
+  .styleOpt canvas { width:44px; height:44px; }
 </style>
 </head>
 <body>
@@ -343,6 +379,43 @@
     </button>
   </div>
   <button class="btn big" id="startBtn">▶ Jogar</button>
+  <button class="btn ghost small" id="menuProfileBtn">👤 Perfil</button>
+  </div>
+</div>
+
+<!-- ===== CONTA: LOGIN / CRIAR CONTA ===== -->
+<div id="login" class="hidden">
+  <div class="authCard">
+    <div class="mPitch"></div>
+    <div class="authTitle">👤 SUA CONTA</div>
+    <div class="authSub" id="authSub">Entre para jogar</div>
+    <div class="authTabs">
+      <button class="authTab sel" id="tabLogin">Entrar</button>
+      <button class="authTab" id="tabCreate">Criar conta</button>
+    </div>
+    <label class="authField">Username
+      <input id="authUser" maxlength="16" autocomplete="username" placeholder="ex: pedro10">
+    </label>
+    <label class="authField">Senha (6 dígitos)
+      <input id="authPass" maxlength="6" inputmode="numeric" autocomplete="current-password" placeholder="••••••">
+    </label>
+    <div class="authErr" id="authErr"></div>
+    <button class="btn big" id="authGo">▶ Entrar</button>
+  </div>
+</div>
+
+<!-- ===== CONTA: PERFIL (avatar + design do jogador) ===== -->
+<div id="profile" class="hidden">
+  <div class="authCard">
+    <div class="mPitch"></div>
+    <div class="authTitle">🖼️ PERFIL</div>
+    <div class="authSub">Escolha sua foto e o design do jogador</div>
+    <div class="authLabel">Foto de perfil</div>
+    <div class="avatarRow" id="avatarRow"></div>
+    <div class="authLabel">Design do jogador</div>
+    <div class="styleRow" id="styleRow"></div>
+    <button class="btn big" id="profileSave">✔ Salvar</button>
+    <button class="btn ghost small" id="profBack">← Voltar</button>
   </div>
 </div>
 
@@ -1404,7 +1477,36 @@ function loop(t){
 
 /* ================= VISUAL DOS JOGADORES ================= */
 /* Design clássico: círculo na cor do time (azul/vermelho) com risco branco
-   indicando o lado da frente (direção do facing). */
+   indicando o lado da frente (direção do facing). Extras de perfil:
+   listras ou estrela na cor branca (escolhidos na conta). */
+function starPath(g, cx, cy, outer, inner, points=5, rot=-Math.PI/2){
+  g.beginPath();
+  for (let i=0;i<points*2;i++){
+    const r = (i%2) ? inner : outer;
+    const a = rot + i*Math.PI/points;
+    const x = cx + Math.cos(a)*r, y = cy + Math.sin(a)*r;
+    if (i) g.lineTo(x,y); else g.moveTo(x,y);
+  }
+  g.closePath();
+}
+/* padrão do corpo (desenhado já rotacionado; g = ctx 2d) */
+function drawStylePattern(g, R, style){
+  if (!style) return;
+  g.save();
+  g.beginPath(); g.arc(0, 0, R*0.99, 0, Math.PI*2); g.clip();
+  if (style===1){                       // Listras
+    g.strokeStyle = 'rgba(255,255,255,0.82)';
+    g.lineWidth = R*0.22; g.lineCap = 'butt';
+    for (const x of [-R*0.45, R*0.18]){
+      g.beginPath(); g.moveTo(x, -R*1.1); g.lineTo(x, R*1.1); g.stroke();
+    }
+  } else if (style===2){                // Estrela
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    starPath(g, -R*0.12, 0, R*0.40, R*0.17);
+    g.fill();
+  }
+  g.restore();
+}
 function drawPlayerBody(p, time){
   const R = p.r*PX;
   const ang = Math.atan2(p.facing[1], p.facing[0]);
@@ -1434,6 +1536,9 @@ function drawPlayerBody(p, time){
   ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle = dark; ctx.lineWidth = Math.max(1.2, R*0.16);
   ctx.stroke();
+
+  // design escolhido na conta (listras/estrela) — só no jogador humano
+  if (p.id===0 && acct && acct.style) drawStylePattern(ctx, R, acct.style);
 
   // risco branco indicando a FRENTE (direção que aponta)
   ctx.strokeStyle = '#ffffff';
@@ -1601,7 +1706,7 @@ function render(time){
     }
     // etiqueta do jogador
     ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.font='bold 9px sans-serif'; ctx.textAlign='center';
-    ctx.fillText(mode==='sala' ? (p.id===0?'P1':'P2') : (p.id===0?'VOCÊ':'IA'), mx(p.x), my(p.y) - p.r*PX - 7);
+    ctx.fillText(mode==='sala' ? (p.id===0?'P1':'P2') : (p.id===0?acctLabel():'IA'), mx(p.x), my(p.y) - p.r*PX - 7);
     // badge do foguete armado: mini-foguete flutuando acima da cabeça + anel vermelho
     if (p.rocket){
       const bob = Math.sin(time*4)*1.5;
@@ -1671,6 +1776,8 @@ document.getElementById('diffStartBtn').onclick = ()=>{
   diffScreenEl.classList.add('hidden');
   showSplash(()=>{
     menuEl.classList.add('hidden');
+    document.getElementById('lbl1').textContent = acctLabel();
+    document.getElementById('lbl2').textContent = 'IA';
     if (gameState!=='play'){ resetMatch(); gameState='play'; }
   });
 };
@@ -1687,7 +1794,7 @@ document.getElementById('menuBtn').onclick = ()=>{
 const salaEl = document.getElementById('salaScreen');
 function restoreMode(){
   mode='ia'; sala=null; goalLimit=GOALS_TO_WIN;
-  document.getElementById('lbl1').textContent = 'VOCÊ';
+  document.getElementById('lbl1').textContent = acctLabel();
   document.getElementById('lbl2').textContent = 'IA';
   document.getElementById('powerups2').classList.add('hidden');
   document.getElementById('controlsSala').classList.add('hidden');
@@ -1798,16 +1905,198 @@ document.getElementById('salaCodeInput').addEventListener('keydown', e=>{
 });
 updateClock(); updateScore(); updatePUHud();
 
-// ================= TELA DE INICIALIZAÇÃO (SPLASH 5s) =================
+/* ================= CONTAS (banco local no dispositivo) ================= */
+const ACC_KEY  = 'ft2d_accounts_v1';   // "banco de dados" de contas (localStorage)
+const SESS_KEY = 'ft2d_session_v1';    // última conta logada
+const AVATARS = [
+  { e:'⚽', name:'Bola',    c:'#4da3ff' },
+  { e:'🧤', name:'Goleiro', c:'#43d860' },
+  { e:'🏆', name:'Campeão', c:'#ffd34d' },
+];
+const STYLE_NAMES = ['Clássico','Listras','Estrela'];
+let accounts = {};
+try { accounts = JSON.parse(localStorage.getItem(ACC_KEY) || '{}') || {}; } catch(e){ accounts = {}; }
+let acct = null;                 // conta logada
+let authMode = 'login';          // 'login' | 'create'
+let authFromNew = false;
+let pickAvatar = 0, pickStyle = 0;
+
+const loginEl   = document.getElementById('login');
+const profileEl = document.getElementById('profile');
+const authUserEl = document.getElementById('authUser');
+const authPassEl = document.getElementById('authPass');
+const authErrEl  = document.getElementById('authErr');
+const authGoEl   = document.getElementById('authGo');
+
+function saveAccounts(){ try { localStorage.setItem(ACC_KEY, JSON.stringify(accounts)); } catch(e){} }
+function hashPass(user, pass){
+  const s = user.toLowerCase() + '|' + pass + '|efootball2d';
+  let h = 0x811c9dc5;                      // FNV-1a (hash simples, só para não guardar a senha crua)
+  for (let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h>>>0).toString(36);
+}
+function accountEmoji(a){ return (AVATARS[(a && a.avatar) || 0] || AVATARS[0]).e; }
+function acctLabel(){ return acct ? acct.user : 'VOCÊ'; }
+function refreshMenuUser(){
+  const b = document.getElementById('menuProfileBtn');
+  if (b) b.textContent = acct ? (accountEmoji(acct) + '  ' + acct.user) : '👤 Perfil';
+}
+function applyAccount(){ refreshMenuUser(); }
+
+function setAuthMode(m){
+  authMode = m;
+  document.getElementById('tabLogin').classList.toggle('sel', m==='login');
+  document.getElementById('tabCreate').classList.toggle('sel', m==='create');
+  authGoEl.textContent = m==='login' ? '▶ Entrar' : '✚ Criar conta';
+  document.getElementById('authSub').textContent = m==='login'
+    ? 'Entre para jogar'
+    : 'Crie seu username e uma senha de 6 dígitos';
+  authErrEl.textContent = '';
+  authPassEl.setAttribute('autocomplete', m==='login' ? 'current-password' : 'new-password');
+}
+function openLogin(){
+  loginEl.classList.remove('hidden');
+  profileEl.classList.add('hidden');
+  menuEl.classList.add('authMode');
+  menuEl.classList.remove('hidden');
+  try {
+    const last = localStorage.getItem(SESS_KEY);
+    if (last && accounts[last]) authUserEl.value = accounts[last].user;
+  } catch(e){}
+  setAuthMode('login');
+  authErrEl.textContent = '';
+  setTimeout(()=>{ (authUserEl.value ? authPassEl : authUserEl).focus(); }, 60);
+}
+function enterMenu(){
+  loginEl.classList.add('hidden');
+  profileEl.classList.add('hidden');
+  menuEl.classList.remove('authMode');
+  menuEl.classList.remove('hidden');
+  refreshMenuUser();
+}
+function submitAuth(){
+  const u = authUserEl.value.trim();
+  const p = authPassEl.value.trim();
+  authErrEl.textContent = '';
+  if (!/^[A-Za-z0-9_]{3,16}$/.test(u)){
+    authErrEl.textContent = 'Username: 3 a 16 letras, números ou _'; return;
+  }
+  if (!/^[0-9]{6}$/.test(p)){
+    authErrEl.textContent = 'A senha precisa ter exatamente 6 dígitos'; return;
+  }
+  const key = u.toLowerCase();
+  if (authMode==='create'){
+    if (accounts[key]){
+      authErrEl.textContent = 'Esse username já existe — escolha outro.'; return;
+    }
+    const a = { user:u, pass:hashPass(key,p), avatar:0, style:0, created:Date.now() };
+    accounts[key] = a; saveAccounts();
+    acct = a;
+    try { localStorage.setItem(SESS_KEY, key); } catch(e){}
+    showProfile(true);                       // conta nova: escolher avatar e design
+  } else {
+    const a = accounts[key];
+    if (!a){ authErrEl.textContent = 'Conta não encontrada — use "Criar conta".'; return; }
+    if (a.pass !== hashPass(key,p)){ authErrEl.textContent = 'Senha incorreta.'; return; }
+    acct = a;
+    try { localStorage.setItem(SESS_KEY, key); } catch(e){}
+    applyAccount();
+    enterMenu();
+  }
+}
+authGoEl.onclick = submitAuth;
+document.getElementById('tabLogin').onclick  = ()=> setAuthMode('login');
+document.getElementById('tabCreate').onclick = ()=> setAuthMode('create');
+authPassEl.addEventListener('input', ()=>{ authPassEl.value = authPassEl.value.replace(/\D/g,'').slice(0,6); });
+authUserEl.addEventListener('keydown', e=>{ if (e.code==='Enter') authPassEl.focus(); });
+authPassEl.addEventListener('keydown', e=>{ if (e.code==='Enter') submitAuth(); });
+
+function paintStylePreview(cnv, style){
+  const g = cnv.getContext('2d');
+  const w = cnv.width, h = cnv.height, R = Math.min(w,h)/2 - 2;
+  g.clearRect(0,0,w,h);
+  g.save(); g.translate(w/2, h/2);
+  g.fillStyle = '#4da3ff';
+  g.beginPath(); g.arc(0,0,R,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#2f7fd9'; g.lineWidth = Math.max(2, R*0.14); g.stroke();
+  drawStylePattern(g, R, style);
+  g.strokeStyle = '#fff'; g.lineWidth = Math.max(2, R*0.22); g.lineCap = 'round';
+  g.beginPath(); g.moveTo(R*0.30,0); g.lineTo(R*0.86,0); g.stroke();
+  g.restore();
+}
+function renderProfileOptions(){
+  const row = document.getElementById('avatarRow');
+  row.innerHTML = '';
+  AVATARS.forEach((av,i)=>{
+    const b = document.createElement('button');
+    b.className = 'avatarOpt' + (i===pickAvatar ? ' sel' : '');
+    b.innerHTML = '<span class="avatarPic" style="border-color:'+av.c+'">'+av.e+'</span><span>'+av.name+'</span>';
+    b.onclick = ()=>{ pickAvatar = i; renderProfileOptions(); };
+    row.appendChild(b);
+  });
+  const srow = document.getElementById('styleRow');
+  srow.innerHTML = '';
+  STYLE_NAMES.forEach((nm,i)=>{
+    const b = document.createElement('button');
+    b.className = 'styleOpt' + (i===pickStyle ? ' sel' : '');
+    b.innerHTML = '<canvas width="44" height="44"></canvas><span>'+nm+'</span>';
+    b.onclick = ()=>{ pickStyle = i; renderProfileOptions(); };
+    srow.appendChild(b);
+    paintStylePreview(b.querySelector('canvas'), i);
+  });
+}
+function showProfile(isNew){
+  authFromNew = !!isNew;
+  pickAvatar = acct ? (acct.avatar || 0) : 0;
+  pickStyle  = acct ? (acct.style  || 0) : 0;
+  loginEl.classList.add('hidden');
+  profileEl.classList.remove('hidden');
+  menuEl.classList.add('authMode');
+  menuEl.classList.remove('hidden');
+  document.getElementById('profBack').style.display = isNew ? 'none' : '';
+  document.getElementById('profileSave').textContent = isNew ? '✔ Salvar e jogar' : '✔ Salvar';
+  document.getElementById('authSub') && (document.getElementById('authSub').textContent = 'Entre para jogar');
+  renderProfileOptions();
+  setTimeout(()=> document.getElementById('profileSave').focus(), 60);
+}
+document.getElementById('profileSave').onclick = ()=>{
+  if (acct){
+    acct.avatar = pickAvatar;
+    acct.style  = pickStyle;
+    accounts[acct.user.toLowerCase()] = acct;
+    saveAccounts();
+  }
+  applyAccount();
+  if (authFromNew){ authFromNew = false; enterMenu(); }
+  else {
+    profileEl.classList.add('hidden');
+    menuEl.classList.remove('authMode');
+    menuEl.classList.remove('hidden');
+    refreshMenuUser();
+  }
+};
+document.getElementById('profBack').onclick = ()=>{
+  profileEl.classList.add('hidden');
+  menuEl.classList.remove('authMode');
+  menuEl.classList.remove('hidden');
+};
+document.getElementById('menuProfileBtn').onclick = ()=>{
+  if (!acct){ openLogin(); return; }
+  showProfile(false);
+};
+
+/* ================= TELA DE INICIALIZAÇÃO (SPLASH 5s) ================= */
 const splashEl = document.getElementById('splash');
 const sNum = splashEl.querySelector('.sNum');
 let splashTick = null;
 let splashTmr = null;
+let splashClickHandler = null;
 
 function showSplash(onFinish){
-  // cancela qualquer timer anterior
+  // cancela qualquer timer/listener anterior
   if (splashTick) clearInterval(splashTick);
   if (splashTmr) clearTimeout(splashTmr);
+  if (splashClickHandler){ splashEl.removeEventListener('click', splashClickHandler); splashClickHandler = null; }
 
   let remaining = 5;
   if (sNum) sNum.textContent = remaining;
@@ -1824,14 +2113,15 @@ function showSplash(onFinish){
     }
   }, 1000);
 
-  splashEl.addEventListener('click', function oneClick(){
-    splashEl.removeEventListener('click', oneClick);
+  splashClickHandler = function oneClick(){
+    splashClickHandler = null;
     clearInterval(splashTick);
     splashTick = null;
     clearTimeout(splashTmr);
     splashTmr = null;
     finishSplash(onFinish);
-  }, { once: true });
+  };
+  splashEl.addEventListener('click', splashClickHandler, { once: true });
 
   splashTmr = setTimeout(()=>{
     clearInterval(splashTick);
@@ -1841,12 +2131,16 @@ function showSplash(onFinish){
 }
 
 function finishSplash(onFinish){
+  if (splashClickHandler){
+    splashEl.removeEventListener('click', splashClickHandler);
+    splashClickHandler = null;
+  }
   splashEl.classList.add('hidden');
   if (typeof onFinish === 'function') onFinish();
 }
 
-// ao abrir: splash, depois menu
-showSplash(() => { menuEl.classList.remove('hidden'); });
+// ao abrir: splash, depois LOGIN da conta
+showSplash(() => { menuEl.classList.remove('hidden'); openLogin(); });
 
 function startBtn(){
   if (menuMode==='sala'){ openSala(); return; }
