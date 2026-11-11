@@ -377,6 +377,10 @@
       <span class="ico">🏟️</span>
       <span class="txt"><b>1v1 por Sala</b><small>local · código de sala</small></span>
     </button>
+    <button class="pick wide" id="onlineBtn" data-mode="online">
+      <span class="ico">🌐</span>
+      <span class="txt"><b>Online 1v1</b><small>jogar com amigo por código</small></span>
+    </button>
   </div>
   <button class="btn big" id="startBtn">▶ Jogar</button>
   <button class="btn ghost small" id="menuProfileBtn">👤 Perfil</button>
@@ -470,6 +474,25 @@
   </div>
 </div>
 
+<div id="onlineScreen" class="hidden">
+  <div class="salaCard">
+    <div class="mPitch"></div>
+    <div class="salaTitle">🌐 ONLINE — <span class="g">1v1 POR CÓDIGO</span></div>
+    <label class="salaField">Servidor<br><input id="wsUrl" placeholder="ws://seu-servidor:3000" autocomplete="off" spellcheck="false"></label>
+    <button class="btn big" id="onlineCreateBtn">➕ Criar sala</button>
+    <div class="joinRow">
+      <input id="onlineCodeInput" maxlength="8" placeholder="Código (ex: S2D-A7K2)" autocomplete="off">
+      <button class="btn" id="onlineJoinBtn">🔑 Entrar</button>
+    </div>
+    <div class="salaJoinErr" id="onlineJoinErr"></div>
+    <div id="onlineWait" class="hidden" style="text-align:center; padding:6px 0 2px">
+      <div class="salaCodeLabel">CÓDIGO DA SALA — passe para o oponente entrar</div>
+      <div class="salaCodeRow"><b id="onlineCodeBig">—</b><button class="btn small" id="onlineCopyBtn">📋 Copiar</button></div>
+      <span class="salaCodeHint">Aguardando oponente entrar…</span>
+    </div>
+    <button class="btn ghost" id="onlineBack" style="margin-top:10px">☰ Voltar ao menu</button>
+  </div>
+</div>
 <div id="endScreen">
   <div id="endTitle">🏆 VITÓRIA!</div>
   <div id="endScore">0 – 0</div>
@@ -479,37 +502,22 @@
     <button class="btn ghost" id="menuBtn">☰ Menu Principal</button>
   </div>
 </div>
+<script src="shared/sim.js"></script>
 <script>
 "use strict";
-/* ================= CONSTANTES (do planejamento) ================= */
-const SCALE = 32;                 // 1 m ≈ 32 px
-const FIELD_W = 30, FIELD_H = 16; // campo em metros
-const GOAL_HALF = 2;              // abertura do gol: 4 m
-const GOAL_DEPTH = 1.2;           // profundidade 1.2 m
-const REST = 0.7;                 // restituição das paredes
-const PLAYER_R = 0.45, BALL_R = 0.22;
-const DAMP_P = 1.5, DAMP_B = 0.35;
-const MAX_SPD = 6.5, ACCEL = 28;
-const KICK_MIN = 8, KICK_MAX = 18, CHARGE_TIME = 0.6;
-const AFTERTOUCH_T = 0.3;
-/* ---- Carrinho (power-up): investida agressiva que rouba a bola ---- */
-const CART_START = 0.18;   // arranque telegrafado
-const CART_SPD   = 15;     // velocidade da investida
-const CART_T     = 0.45;   // duração da investida
-const CART_REC   = 0.45;   // recuperação lenta se errar tudo
-const CART_BALL_POW = 13;  // impulso na bola ao acertar
-const CART_KNOCK = 10;     // empurrão no adversário
-const CART_STUN  = 1.5;    // atordoa quem leva o carrinho
-/* ---- Muralha (power-up): obstáculo fixo na frente do próprio gol ---- */
-const WALL_X_OFF = 2.5;    // distância da linha de fundo
-const WALL_HW = 0.2, WALL_HH = 1.0;  // meia-largura (0,4 m) e meia-altura (2 m)
-const WALL_LIFE = 6;       // segundos de pé
-const MATCH_TIME = 180, GOALS_TO_WIN = 5;
+/* ================= CONSTANTES (gameplay vive em shared/sim.js) ================= */
+const SCALE = Sim.SCALE, FIELD_W = Sim.FIELD_W, FIELD_H = Sim.FIELD_H;
+const GOAL_HALF = Sim.GOAL_HALF, GOAL_DEPTH = Sim.GOAL_DEPTH, REST = Sim.REST;
+const PLAYER_R = Sim.PLAYER_R, BALL_R = Sim.BALL_R;
+const MAX_SPD = Sim.MAX_SPD, ACCEL = Sim.ACCEL;
+const CHARGE_TIME = Sim.CHARGE_TIME, AFTERTOUCH_T = Sim.AFTERTOUCH_T;
+const MATCH_TIME = Sim.MATCH_TIME, GOALS_TO_WIN = Sim.GOALS_TO_WIN;
+const PU_TYPES = Sim.PU_TYPES, PU_COLOR = Sim.PU_COLOR;
+const AI_CFG = Sim.AI_CFG, DIFF_NAMES = Sim.DIFF_NAMES;
 
 /* ================= SALAS: 1v1 LOCAL ================= */
 let mode = 'ia';                // 'ia' (treino) | 'sala' (1v1 local por sala)
 let sala = null;                // sala ativa {code,name,dur,goals,pus:{Foguete:true,...}}
-let goalLimit = GOALS_TO_WIN;   // limite de gols da partida (setado pela sala)
 const LS_SALAS = 'ft2d_salas_v1';
 function loadSalasDB(){ try { return JSON.parse(localStorage.getItem(LS_SALAS)) || {}; } catch(e){ return {}; } }
 function saveSalasDB(s){ try { localStorage.setItem(LS_SALAS, JSON.stringify(s||salasDB)); } catch(e){} }
@@ -534,54 +542,65 @@ const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 
 /* ================= INPUT ================= */
 const keys = {};
+/* bordas do modo online (x, y, … níveis + bordas — enviadas ao servidor; ela/pow consumidas no envio) */
+const netInput = { u:false, d:false, l:false, r:false, plant:false, kick:false, ela:false, pow:false };
 addEventListener('keydown', e => {
   const inInput = e.target && (e.target.tagName==='INPUT');
   if (!inInput && ['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter'].includes(e.code)) e.preventDefault();
   if (inInput && e.code!=='Enter'){ keys[e.code] = false; return; }  // digitando: não move/joga
   if (e.repeat) return;                      // ignora auto-repetição (Q não dispara vários shots)
   keys[e.code] = true;
-  const playing = gameState==='play' && kickoffPause<=0;
-  if (e.code === 'KeyQ') usePower(me);
-  if (e.code === 'KeyE') elastic(me);        // elástico: um toque por aperto de tecla
-  if (mode==='sala'){                        // P2 (vermelho), mesmo teclado
-    if (e.code === 'Slash')      usePower(foe);
-    if (e.code === 'ShiftRight') elastic(foe);
-    if (e.code === 'Enter' && playing && !foe.charging && (touchingBall(foe) || ball.owner===foe)){
-      foe.charging = true; foe.kickChargeT = 0;
-    }
+  if (mode==='online'){                      // P2 remoto: teclado só controla o lado local
+    if (e.code === 'KeyQ') netInput.pow = true;
+    if (e.code === 'KeyE') netInput.ela = true;
+    if (e.code === 'Enter' && gameState==='over') rematch();
+    return;
   }
-  if (e.code === 'Space' && playing){
-    // inicia a carga já no keydown → um "tap" rápido também chuta a bola grudada
-    if (!me.charging && (touchingBall(me) || ball.owner===me)){ me.charging=true; me.kickChargeT=0; }
+  if (e.code === 'KeyQ') match.inputs[0].pow = true;   // ativar power-up (borda)
+  if (e.code === 'KeyE') match.inputs[0].ela = true;   // elástico (borda)
+  if (mode==='sala'){                        // P2 (vermelho), mesmo teclado
+    if (e.code === 'Slash')      match.inputs[1].pow = true;
+    if (e.code === 'ShiftRight') match.inputs[1].ela = true;
   }
   if (e.code === 'Enter' && gameState==='over') rematch();
 });
 addEventListener('keyup', e => {
   keys[e.code] = false;
-  if ((e.code === 'Space') && gameState==='play') releaseKick(me);
-  if ((e.code === 'Enter') && mode==='sala' && gameState==='play') releaseKick(foe);
+  // soltar o botão de chute é detectado pela simulação via nível (keys/match.inputs)
 });
-addEventListener('blur', () => {  // janela perdeu foco: solta todas as teclas (evita tecla "presa")
+addEventListener('blur', () => {  // janela perdeu foco: solta todas as teclas e bordas (evita input "preso")
   for (const k in keys) keys[k] = false;
-  for (const p of players){ p.charging=false; p.kickChargeT=0; p.planted=false; p.cartState=0; p.cartT=0; }
+  for (const inp of match.inputs){ for (const k in inp) inp[k] = false; }
+  for (const k in netInput) netInput[k] = false;
 });
 // garante foco na janela/página ao clicar no canvas (evita "nada funciona")
 cv.addEventListener('mousedown', () => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
-function inputDir(pid){
-  let p;
-  if (pid===0){
+/* sincroniza os NÍVEIS (tecla segurada) com a simulação — as bordas (ela/pow) vêm do keydown */
+function syncInputsLocal(){
+  const i0 = match.inputs[0];
+  if (mode==='sala'){
     // em 1v1 local, WASD é exclusivo do P1 (setas passam a ser do P2)
-    p = mode==='sala'
-      ? { u:keys['KeyW'], d:keys['KeyS'], l:keys['KeyA'], r:keys['KeyD'] }
-      : { u:keys['KeyW']||keys['ArrowUp'], d:keys['KeyS']||keys['ArrowDown'],
-          l:keys['KeyA']||keys['ArrowLeft'], r:keys['KeyD']||keys['ArrowRight'] };
+    i0.u=!!keys['KeyW']; i0.d=!!keys['KeyS']; i0.l=!!keys['KeyA']; i0.r=!!keys['KeyD'];
+    i0.plant=!!(keys['ControlLeft']||keys['Control']);
   } else {
-    p = mode==='sala'
-      ? { u:keys['ArrowUp'], d:keys['ArrowDown'], l:keys['ArrowLeft'], r:keys['ArrowRight'] }
-      : ai.inDir;
+    i0.u=!!(keys['KeyW']||keys['ArrowUp']); i0.d=!!(keys['KeyS']||keys['ArrowDown']);
+    i0.l=!!(keys['KeyA']||keys['ArrowLeft']); i0.r=!!(keys['KeyD']||keys['ArrowRight']);
+    i0.plant=!!(keys['ControlLeft']||keys['ControlRight']||keys['Control']);
   }
-  let x = (p.r?1:0) - (p.l?1:0), y = (p.d?1:0) - (p.u?1:0);
-  const n = Math.hypot(x,y); return n? [x/n, y/n, n] : [0,0,0];
+  i0.kick = !!keys['Space'];
+  const i1 = match.inputs[1];
+  if (mode==='sala'){
+    i1.u=!!keys['ArrowUp']; i1.d=!!keys['ArrowDown']; i1.l=!!keys['ArrowLeft']; i1.r=!!keys['ArrowRight'];
+    i1.plant=!!keys['ControlRight']; i1.kick=!!keys['Enter'];
+  } else {
+    i1.u=i1.d=i1.l=i1.r=i1.plant=i1.kick=false;   // modo treino: a IA dirige o lado 2
+  }
+}
+function syncNetInput(){   // modo online: níveis + bordas vão para o servidor a cada 16 ms
+  netInput.u=!!(keys['KeyW']||keys['ArrowUp']); netInput.d=!!(keys['KeyS']||keys['ArrowDown']);
+  netInput.l=!!(keys['KeyA']||keys['ArrowLeft']); netInput.r=!!(keys['KeyD']||keys['ArrowRight']);
+  netInput.plant=!!(keys['ControlLeft']||keys['ControlRight']||keys['Control']);
+  netInput.kick=!!keys['Space'];
 }
 
 /* ================= ENTIDADES ================= */
@@ -605,17 +624,14 @@ const TEAM_KIT = [
   { main:'#ff5d5d', dark:'#9d2b2b', light:'#ffaaaa', trim:'#fff0f0' }
 ];
 
-function makePlayer(id, x, y){
-  return { id, x, y, vx:0, vy:0, r:PLAYER_R, mass:1,
-           kickChargeT:0, charging:false,
-           cartState:0 /* 0 nada · 1 arranque · 2 investida · 3 recuperando */, cartT:0, cartDir:[id===0?1:-1,0], slowT:0,
-           planted:false, stunT:0, turboT:0, rocket:false, hitFxT:0,
-           hasPower:null, lastTouchT:0, facing:[id===0?1:-1,0], score:0,
-           skin:null, hair:null };
-}
-const me   = makePlayer(0, 7, 8);
-const foe  = makePlayer(1, 23, 8);
-const players = [me, foe];
+/* A partida é compartilhada com shared/sim.js — mesma simulação roda
+   no navegador (treino vs IA / 1v1 local) e no servidor (online). */
+const match = Sim.createMatch({ mode: 'ia', diff: 1 });
+const players = match.players;
+const me = players[0], foe = players[1];
+const ball = match.ball;
+const pickups = match.pickups;   // arrays mutados in-place pela sim (referências estáveis)
+const walls   = match.walls;
 
 /* sorteia aparências diferentes para os jogadores (renovadas a cada partida) */
 function pickTone(list, avoid){
@@ -629,19 +645,6 @@ function rollAppearances(){
   foe.hair = pickTone(HAIR_TONES, me.hair);
 }
 rollAppearances();
-const ball = { x:15, y:8, vx:0, vy:0, r:BALL_R, lastKicker:null, afterT:0, owner:null, noStealT:0, flameT:0 };
-
-/* ================= POWER-UPS ================= */
-const PU_TYPES = ['Foguete','Turbo','Carrinho','Muralha'];
-const PU_COLOR = { 'Foguete':'#ff4d4d', 'Turbo':'#43d860', 'Carrinho':'#ffa03c', 'Muralha':'#9fb2cc' };
-let pickups = []; // {x,y,type}
-let walls   = []; // muralhas: {x, y, hw, hh, life, max, owner}
-function spawnPickup(){
-  const pool = allowedPU();
-  if (!pool.length) return;                 // sala com "nenhum poder": futebol puro
-  const t = pool[Math.floor(Math.random()*pool.length)];
-  pickups.push({ x: 4+Math.random()*22, y: 2.5+Math.random()*11, type:t });
-}
 
 /* ================= FX: PARTÍCULAS, ONDAS E SHAKE ================= */
 let fx = [];                              // partículas/ondas temporárias
@@ -762,345 +765,12 @@ function drawPUIcon(type, x, y, s){
 }
 
 /* ================= ESTADO DA PARTIDA ================= */
-let gameState = 'menu'; // menu | play | over
-let timeLeft = MATCH_TIME, goldenGoal = false, kickoffPause = 0;
-let diff = 1;
-/* Fácil: lento, reação lenta, mira muito errada, chute fraco, quase nunca usa poderes.
-   Médio: competitivo. Difícil: perto do limite humano, usa poderes na hora certa.
-   puP = chance de usar um power-up por decisão; powerCd = pausa entre usos. */
-const AI_CFG = [
-  { delay:0.38, err:24*Math.PI/180, spd:0.68, kickPow:7,    puP:0.12, kickChance:0.6  }, // Fácil (mais suave que o plano, por decisão)
-  { delay:0.15, err: 7*Math.PI/180, spd:0.92, kickPow:10,   puP:0.55, kickChance:0.85 }, // Médio = plano (150 ms · ±7° · 92%)
-  { delay:0.08, err: 2*Math.PI/180, spd:1.00, kickPow:11.5, puP:0.95, kickChance:1    }, // Difícil = plano (80 ms · ±2° · 100%)
-];
-const DIFF_NAMES = ['Fácil','Médio','Difícil'];
-const ai = { mode:'chase', thinkT:0, inDir:{u:0,d:0,l:0,r:0}, wantKick:false, holdKickT:0 };
+let gameState = 'menu'; // menu | play | over (a simulação guarda o seu próprio estado em match.gameState)
+let diff = 1;           // dificuldade da IA (0 Fácil · 1 Médio · 2 Difícil)
+const ai = { mode:'chase', thinkT:0, wantKick:false, powerCd:0, target:[15,8], face:[-1,0] };
 
-/* ================= FÍSICA ================= */
-function damp(v, k, dt){ const f = Math.exp(-k*dt); v.vx*=f; v.vy*=f; }
-function clampSpeed(p, max){
-  const s = Math.hypot(p.vx,p.vy);
-  if (s > max){ p.vx *= max/s; p.vy *= max/s; }
-}
-function movePlayer(p, dt){
-  if (p.cartState===1){                              // arranque do carrinho (telegrafado)
-    p.cartT -= dt;
-    p.vx *= Math.exp(-8*dt); p.vy *= Math.exp(-8*dt);
-    if (p.cartT<=0){
-      p.cartState = 2; p.cartT = CART_T;
-      p.vx = p.cartDir[0]*CART_SPD; p.vy = p.cartDir[1]*CART_SPD;
-      // se você estava com a bola: a investida lança a bola à frente
-      if (ball.owner === p){
-        ball.owner = null; ball.noStealT = 0.30;
-        ball.vx = p.cartDir[0]*CART_BALL_POW; ball.vy = p.cartDir[1]*CART_BALL_POW;
-        ball.lastKicker = p; ball.afterT = 0.2;
-        sparks(ball.x, ball.y, 10, PU_COLOR['Carrinho'], 5, 2.4);
-      }
-      sparks(p.x, p.y, 8, PU_COLOR['Carrinho'], 3.5, 2.2);
-    }
-  } else if (p.cartState===2){                       // investida: velocidade fixa, sem damping
-    p.cartT -= dt;
-    p.vx = p.cartDir[0]*CART_SPD; p.vy = p.cartDir[1]*CART_SPD;
-    p.x += p.vx*dt; p.y += p.vy*dt;
-    // rastro de poeira da barrida
-    if (Math.random()<0.85) fxPush({type:'dot', x:p.x-p.cartDir[0]*p.r, y:p.y-p.cartDir[1]*p.r+(Math.random()-0.5)*0.25,
-            vx:-p.cartDir[0]*2, vy:-p.cartDir[1]*2, color:'rgba(205,195,175,0.8)', size:2.4, life:0.30, max:0.30});
-    if (p.cartT<=0){ p.cartState=3; p.slowT=CART_REC; p.vx*=0.15; p.vy*=0.15; }
-    wallBouncePlayer(p); cartWallCheck(p);   // sem wallResolve: a investida atravessa e derruba a pedra
-    return;
-  } else if (p.cartState===3){                       // recuperando: lento
-    p.slowT -= dt;
-    clampSpeed(p, MAX_SPD*0.35);
-    damp(p, DAMP_P*1.4, dt);
-    p.x += p.vx*dt; p.y += p.vy*dt;
-    wallBouncePlayer(p); wallResolve(p);
-    if (p.slowT<=0){ p.cartState = 0; }
-    return;
-  }
-  clampSpeed(p, currentMaxSpeed(p));
-  damp(p, DAMP_P, dt);
-  p.x += p.vx*dt; p.y += p.vy*dt;
-  wallBouncePlayer(p); wallResolve(p);
-}
-function currentMaxSpeed(p){
-  let m = MAX_SPD;
-  if (p.turboT>0) m *= 1.4;
-  if (p.id===1 && mode!=='sala') m *= AI_CFG[diff].spd;   // no 1v1 local, humano joga em full speed
-  return m;
-}
-/* ================= MURALHA: colisões de jogadores ================= */
-function wallResolve(p){                          // empurra para fora (bloqueio suave, sem stun)
-  for (const w of walls){
-    if (w.life<=0) continue;
-    const dx = p.x - w.x, dy = p.y - w.y;
-    const ox = (w.hw + p.r) - Math.abs(dx), oy = (w.hh + p.r) - Math.abs(dy);
-    if (ox<=0 || oy<=0) continue;
-    if (ox < oy){ p.x += dx>=0 ? ox : -ox; p.vx = 0; }
-    else { p.y += dy>=0 ? oy : -oy; p.vy = 0; }
-  }
-}
-function cartWallCheck(p){                        // carrinho atravessa e demole a muralha
-  for (const w of walls){
-    if (w.life<=0) continue;
-    if (Math.abs(p.x-w.x) < w.hw+p.r && Math.abs(p.y-w.y) < w.hh+p.r){
-      breakWall(w);
-      p.cartState = 3; p.slowT = CART_REC; p.vx *= 0.2; p.vy *= 0.2;
-      addShake(4.5, 0.2);
-      if (p.id===0) showMsg('🧨 Você demoliu a muralha!', 900);
-      return;
-    }
-  }
-}
-function breakWall(w){                            // pedra estilhaçando
-  w.life = 0;
-  ring(w.x, w.y, '#9fb2cc', 2.2, 0.4, 3);
-  ring(w.x, w.y, 'rgba(255,255,255,0.5)', 1.5, 0.3, 2.5);
-  sparks(w.x, w.y, 18, '#8a97a8', 5, 3);
-}
-function wallBouncePlayer(p){
-  const inMouth = Math.abs(p.y - FIELD_H/2) < GOAL_HALF;
-  // nas laterais fora da boca do gol, rebate nas linhas de campo
-  if (!inMouth){
-    if (p.x < p.r){ p.x = p.r; p.vx = Math.abs(p.vx)*REST; }
-    if (p.x > FIELD_W - p.r){ p.x = FIELD_W - p.r; p.vx = -Math.abs(p.vx)*REST; }
-  }
-  // topo/base sempre rebatem
-  if (p.y < p.r){ p.y = p.r; p.vy = Math.abs(p.vy)*REST; }
-  if (p.y > FIELD_H - p.r){ p.y = FIELD_H - p.r; p.vy = -Math.abs(p.vy)*REST; }
-  // jogador entrou dentro do gol (zona interna além da rede) → contabiliza gol
-  // gol esquerdo marca para o jogador 1, gol direito marca para o jogador 0 (cobre gol contra)
-  if (inMouth){
-    if (p.x < -GOAL_DEPTH + p.r){ goal(1); return; }
-    if (p.x > FIELD_W + GOAL_DEPTH - p.r){ goal(0); return; }
-  }
-}
-function moveBall(dt){
-  damp(ball, DAMP_B, dt);
-  ball.x += ball.vx*dt; ball.y += ball.vy*dt;
-  // paredes
-  const inMouth = Math.abs(ball.y - FIELD_H/2) < GOAL_HALF;
-  if (ball.x < ball.r && !inMouth){ ball.x = ball.r; ball.vx = Math.abs(ball.vx)*REST; }
-  if (ball.x > FIELD_W - ball.r && !inMouth){ ball.x = FIELD_W - ball.r; ball.vx = -Math.abs(ball.vx)*REST; }
-  if (ball.y < ball.r){ ball.y = ball.r; ball.vy = Math.abs(ball.vy)*REST; }
-  if (ball.y > FIELD_H - ball.r){ ball.y = FIELD_H - ball.r; ball.vy = -Math.abs(ball.vy)*REST; }
-  // profundidade do gol / sensores
-  if (inMouth){
-    if (ball.x < -GOAL_DEPTH + ball.r){ ball.x = -GOAL_DEPTH + ball.r; ball.vx = Math.abs(ball.vx)*REST; }
-    if (ball.x > FIELD_W + GOAL_DEPTH - ball.r){ ball.x = FIELD_W + GOAL_DEPTH - ball.r; ball.vx = -Math.abs(ball.vx)*REST; }
-    if (ball.x < -0.1) goal(1);
-    if (ball.x > FIELD_W + 0.1) goal(0);
-  }
-  // muralhas: ricochete; chute-foguete derruba a muralha e atravessa mais devagar
-  for (const w of walls){
-    if (w.life<=0) continue;
-    const dx = ball.x - w.x, dy = ball.y - w.y;
-    const px = (w.hw + ball.r) - Math.abs(dx), py = (w.hh + ball.r) - Math.abs(dy);
-    if (px<=0 || py<=0) continue;
-    if (ball.flameT>0 && ball.curveLock){          // foguete: demolição
-      breakWall(w); ball.vx*=0.72; ball.vy*=0.72; addShake(6, 0.26);
-      showMsg('💥 Foguete demoliu a muralha!', 900);
-      continue;
-    }
-    if (px < py){
-      ball.x += dx>=0 ? px : -px;
-      ball.vx = (dx>=0 ? Math.abs(ball.vx) : -Math.abs(ball.vx))*REST;
-    } else {
-      ball.y += dy>=0 ? py : -py;
-      ball.vy = (dy>=0 ? Math.abs(ball.vy) : -Math.abs(ball.vy))*REST;
-    }
-  }
-  // rastro de chamas do chute-foguete
-  if (ball.flameT>0){
-    ball.flameT -= dt;
-    for (let i=0;i<2;i++){
-      fxPush({type:'dot', x:ball.x+(Math.random()-0.5)*0.10, y:ball.y+(Math.random()-0.5)*0.10,
-              vx:-ball.vx*0.05+(Math.random()-0.5), vy:-ball.vy*0.05+(Math.random()-0.5),
-              color:Math.random()<0.5?'#ff9d3c':'#ffd34d',
-              size:1.5+Math.random()*1.7, life:0.22+Math.random()*0.18, max:0.40});
-    }
-  }
-}
-/* ================= POSSE / DRIBLE ================= */
-function carryBall(){
-  const p = ball.owner;
-  if (p.stunT>0){ ball.owner=null; ball.noStealT=0.25; return; }   // levou tackle → solta
-  const dist = p.r + ball.r + 0.02;                                 // bola colada na frente do dono
-  let bx = p.x + p.facing[0]*dist, by = p.y + p.facing[1]*dist;
-  bx = Math.max(ball.r, Math.min(bx, FIELD_W-ball.r));
-  by = Math.max(ball.r, Math.min(by, FIELD_H-ball.r));
-  ball.x = bx; ball.y = by;
-  ball.vx = p.vx; ball.vy = p.vy;                                   // gruda: anda junto
-  ball.afterT = 0;
-}
-function collide(a, b, e, aFixed, bFixed){
-  const dx = b.x-a.x, dy = b.y-a.y;
-  const d = Math.hypot(dx,dy), min = a.r+b.r;
-  if (d===0 || d>=min) return false;
-  const nx = dx/d, ny = dy/d;
-  const invA = aFixed?0:(a.id!==undefined?1/a.mass:1/(a.mass||1));
-  const invB = bFixed?0:(b.id!==undefined?1/b.mass:1/(b.mass||1));
-  const invTot = invA + invB; if (invTot===0) return true;
-  // separação
-  a.x -= nx*(min-d)*(invA/invTot); a.y -= ny*(min-d)*(invA/invTot);
-  b.x += nx*(min-d)*(invB/invTot); b.y += ny*(min-d)*(invB/invTot);
-  const rvx = b.vx-a.vx, rvy = b.vy-a.vy;
-  const vn = rvx*nx + rvy*ny;
-  if (vn > 0) return true;
-  const j = -(1+e)*vn/invTot;
-  a.vx -= j*nx*invA; a.vy -= j*ny*invA;
-  b.vx += j*nx*invB; b.vy += j*ny*invB;
-  return true;
-}
-function touchingBall(p){ return Math.hypot(ball.x-p.x, ball.y-p.y) < p.r + ball.r + 0.15; }
-
-/* ================= CHUTE / AFTERTOUCH ================= */
-function releaseKick(p){
-  if (!p.charging) return;
-  p.charging = false;
-  let power = KICK_MIN;
-  if (p.kickChargeT > 0.08){
-    const ch = Math.min(p.kickChargeT/CHARGE_TIME, 1);
-    power = KICK_MIN + ch*(KICK_MAX-KICK_MIN);
-  }
-  doKick(p, power);
-  p.kickChargeT = 0;
-}
-function doKick(p, power){
-  // soltar a bola da posse antes de chutar
-  ball.owner = null; ball.noStealT = 0.22;
-  if (!touchingBall(p)) return;
-  let [dx,dy] = [ball.x-p.x, ball.y-p.y];
-  let n = Math.hypot(dx,dy); if (n===0) n=1;
-  dx/=n; dy/=n;
-  if (p.id===1){ // erro angular da IA
-    const a = Math.atan2(dy,dx) + (Math.random()*2-1)*AI_CFG[diff].err;
-    dx = Math.cos(a); dy = Math.sin(a);
-  }
-  let locked = false;
-  if (p.rocket){ power *= 1.8; p.rocket = false; locked = true; }
-  ball.vx = dx*power; ball.vy = dy*power;
-  ball.lastKicker = p; ball.afterT = AFTERTOUCH_T; ball.curveLock = locked;
-  p.facing = [dx,dy];
-  /* ---- efeitos do chute ---- */
-  if (locked){   // CHUTE FOGUETE: explosão, ondas, chamas e tremor de tela
-    ball.flameT = 0.6;
-    addShake(7, 0.32);
-    ring(p.x, p.y, '#ff4d4d', 3.2, 0.42, 3.5);
-    ring(ball.x, ball.y, '#ffd34d', 1.9, 0.32, 2.5);
-    sparks(ball.x, ball.y, 16, '#ff9d3c', 7, 2.6);
-    sparks(p.x, p.y, 10, '#ffd34d', 5, 2.2);
-  } else {       // chute comum: baforada branca
-    sparks(ball.x, ball.y, 6, 'rgba(255,255,255,0.9)', 3, 1.9);
-    ring(ball.x, ball.y, 'rgba(255,255,255,0.55)', 0.9, 0.22, 2);
-  }
-}
-function applyAftertouch(p, dt){
-  if (ball.afterT<=0 || ball.lastKicker!==p) return;
-  ball.afterT -= dt;
-  const [ix,iy,n] = inputDir(p.id);
-  if (!n) return;
-  if (ball.curveLock) return; // foguete: reto
-  // curva: gira a velocidade da bola na direção do input
-  const v = Math.hypot(ball.vx, ball.vy); if (v<0.5) return;
-  const ang = Math.atan2(ball.vy, ball.vx);
-  const tgt = Math.atan2(iy, ix);
-  let da = tgt - ang;
-  while (da >  Math.PI) da -= 2*Math.PI;
-  while (da < -Math.PI) da += 2*Math.PI;
-  const limit = Math.PI/2;
-  da = Math.max(-limit, Math.min(limit, da));
-  const rot = da * dt / AFTERTOUCH_T * 2.6; // curva suave
-  const na = ang + rot;
-  ball.vx = Math.cos(na)*v; ball.vy = Math.sin(na)*v;
-}
-/* ================= ELÁSTICO ================= */
-function elastic(p){
-  if (gameState!=='play' || kickoffPause>0 || p.stunT>0 || p.cartState!==0) return;
-  if (!(touchingBall(p) || ball.owner===p)) return;
-  ball.owner = null; ball.noStealT = 0.18;   // o elástico também solta a bola da posse (roubo!)
-  // toque lateral rápido: empurra a bola perpendicular à linha jogador→bola
-  let [dx,dy]=[ball.x-p.x, ball.y-p.y];
-  let n = Math.hypot(dx,dy); if(!n) return; dx/=n; dy/=n;
-  const [ix,iy,ii] = inputDir(p.id);
-  let side = dx*iy - dy*ix; // sinal para escolher o lado do input
-  if (ii && Math.abs(side) < 0.15) side = 1;
-  const s = side>=0?1:-1;
-  const lx = -dy*s, ly = dx*s;
-  const pow = 10;
-  ball.vx = lx*pow + dx*3; ball.vy = ly*pow + dy*3;
-  ball.lastKicker = p; ball.afterT = AFTERTOUCH_T;
-}
-
-/* ================= USO DE POWER-UP (Q) ================= */
-function usePower(p){
-  if (gameState!=='play' || kickoffPause>0){
-    if (p.id===0 && kickoffPause>0) showMsg('Espera o kickoff! ⏳', 800);
-    return;
-  }
-  if (p.cartState!==0){
-    if (p.id===0) showMsg('Termine o carrinho em andamento ⏳', 900);
-    return;
-  }
-  if (!p.hasPower){
-    if (p.id===0) showMsg('Q: você não tem power-up! Pegue um círculo colorido no campo ⭕', 1300);
-    return;
-  }
-  const t = p.hasPower; p.hasPower = null; updatePUHud();
-  let msg = '';
-  if (t==='Foguete'){
-    p.rocket = true; msg = '🚀 FOGUETE! Seu próximo chute sai 1,8× mais forte e reto';
-    ring(p.x, p.y, '#ff4d4d', 1.7, 0.35, 3);
-    sparks(p.x, p.y, 10, '#ff9d3c', 4, 2);
-  }
-  if (t==='Carrinho'){
-    // direção: input atual; sem input, a direção que você está virado
-    let dx, dy;
-    if (p.id===0){
-      const [ix,iy,n] = inputDir(0);
-      if (n){ dx=ix; dy=iy; } else { dx=p.facing[0]; dy=p.facing[1]; }
-    } else if (mode==='sala'){
-      // P2 humano: investe na direção das setas dele (ou a que estiver virado)
-      const [ix,iy,n] = inputDir(1);
-      if (n){ dx=ix; dy=iy; } else { dx=p.facing[0]; dy=p.facing[1]; }
-    } else {
-      // IA: investe na direção da bola/adversário
-      const tx = ball.x - p.x, ty = ball.y - p.y;
-      const nn = Math.hypot(tx,ty);
-      dx = nn ? tx/nn : p.facing[0]; dy = nn ? ty/nn : p.facing[1];
-    }
-    const nn2 = Math.hypot(dx,dy);
-    if (nn2){ dx/=nn2; dy/=nn2; } else { dx=p.facing[0]; dy=p.facing[1]; }
-    p.cartDir = [dx,dy]; p.facing = [dx,dy];
-    p.cartState = 1; p.cartT = CART_START;
-    msg = '🎯 CARRINHO! Investida frontal — lança a bola e atordoa por 1,5 s';
-    ring(p.x, p.y, PU_COLOR['Carrinho'], 1.6, 0.3, 3);
-    addShake(1.6, 0.10);
-  }
-  if (t==='Muralha'){
-    // espawn fixo: no seu campo, ~2,5 m à frente da linha do próprio gol, centralizado
-    const sx = p.id===0 ? WALL_X_OFF : FIELD_W - WALL_X_OFF;
-    walls.push({ x:sx, y:FIELD_H/2, hw:WALL_HW, hh:WALL_HH, life:WALL_LIFE, max:WALL_LIFE, owner:p.id });
-    // ninguém espawna em cima da pedra: bola e jogadores saem empurrados
-    for (const o of [ball, ...players]){
-      const dx=o.x-sx, dy=o.y-FIELD_H/2;
-      const ox=(WALL_HW+o.r)-Math.abs(dx), oy=(WALL_HH+o.r)-Math.abs(dy);
-      if (ox<=0 || oy<=0) continue;
-      if (ox<oy){ o.x += dx>=0 ? ox : -ox; } else { o.y += dy>=0 ? oy : -oy; }
-    }
-    msg = '🧱 MURALHA! Surgiu em frente ao seu gol (6 s) — Foguete e Carrinho derrubam';
-    ring(sx, FIELD_H/2, PU_COLOR['Muralha'], 2.0, 0.35, 3);
-    sparks(sx, FIELD_H/2, 12, '#9fb2cc', 3.5, 2.4);
-    addShake(2, 0.12);
-  }
-  if (t==='Turbo'){
-    p.turboT = 3; msg = '💨 TURBO! +40% de velocidade por 3 s';
-    ring(p.x, p.y, '#43d860', 1.7, 0.35, 3);
-    ring(p.x, p.y, 'rgba(67,216,96,0.6)', 2.4, 0.5, 2);
-    sparks(p.x, p.y, 12, '#43d860', 5, 2.4);
-    addShake(2, 0.12);
-  }
-  if (p.id===0) showMsg(msg, 1400);
-}
+/* ================= SIMULAÇÃO (shared/sim.js) ================= */
+const touchingBall = p => match.touchingBall(p);
 
 /* ================= IA ================= */
 function aiThink(dt){
@@ -1180,99 +850,213 @@ function aiThink(dt){
   /* ---- uso de power-ups pela IA (critério por dificuldade) ---- */
   ai.powerCd = Math.max(0, (ai.powerCd||0) - dt);
   const dfb = Math.hypot(ball.x-foe.x, ball.y-foe.y);   // distância bola↔IA
-  if (foe.hasPower && ai.powerCd<=0 && kickoffPause<=0 && foe.cartState===0 && Math.random() < AI_CFG[diff].puP){
+  if (foe.hasPower && ai.powerCd<=0 && match.kickoffPause<=0 && foe.cartState===0 && Math.random() < AI_CFG[diff].puP){
     let use = false;
     if (foe.hasPower==='Foguete' && ball.owner===foe && ball.x < FIELD_W*0.40) use = true;
     else if (foe.hasPower==='Carrinho' && ball.owner===me && dfb < 3.6) use = true;
     else if (foe.hasPower==='Muralha' && ball.x > FIELD_W*0.62) use = true;   // você atacando / defendendo recuada
     else if (foe.hasPower==='Turbo' && ((ball.owner===foe && Math.abs(3.5-ball.x) > 6) ||
                                          (ball.owner!==foe && dfb > 7))) use = true;
-    if (use){ usePower(foe); ai.powerCd = 1.2; }
+    if (use){ match.usePower(foe); ai.powerCd = 1.2; }
   }
 }
 
 /* ================= PARTIDA ================= */
-function goal(scorer){
-  if (gameState!=='play') return;
-  players[scorer].score++;
-  updateScore();
-  resetKickoff(scorer===0 ? 1 : 0);
-  if (players[scorer].score >= goalLimit){
-    showMsg('GOL! 🏆', 900);
-    endMatch();
-    return;
-  }
-  if (goldenGoal){ endMatch(); return; }
-  showMsg(scorer===0
-    ? (mode==='sala' ? 'GOL DO P1! ⚽' : 'GOL! ⚽')
-    : (mode==='sala' ? 'GOL DO P2! 💀' : 'Gol da IA 💀'), 1100);
-  kickoffPause = 3;   // 3 s congelados com todos nos pontos de partida
+function playerLabel(p){
+  if (mode==='online' && net.myId!=null) return p.id===net.myId ? acctLabel() : 'Oponente';
+  if (mode==='sala') return p.id===0 ? 'P1' : 'P2';
+  return p.id===0 ? acctLabel() : 'IA';
 }
-function resetKickoff(lossSide){
-  ball.x=15; ball.y=8; ball.vx=0; ball.vy=0; ball.afterT=0; ball.lastKicker=null;
-  ball.owner=null; ball.noStealT=0;
-  me.x=7; me.y=8; me.vx=0; me.vy=0; foe.x=23; foe.y=8; foe.vx=0; foe.vy=0;
-  for (const p of players){ p.cartState=0; p.cartT=0; p.slowT=0; p.charging=false; p.kickChargeT=0; }
-  ai.mode='chase';
-}
-function endMatch(){
-  gameState='over';
-  const a=me.score, b=foe.score;
+function showEndScreen(ev){
+  const a = ev.scores[0], b = ev.scores[1];
   const title = document.getElementById('endTitle');
   const sc = document.getElementById('endScore');
   const endScreen = document.getElementById('endScreen');
-  const p1win = a>b, p2win = b>a, tie = a===b;
-  if (mode==='sala'){
+  const p1win = a > b, p2win = b > a, tie = a === b;
+  const ggTxt = ev.goldenGoal ? ' · decidido no GOL DE OURO ⚡' : '';
+  if (mode === 'online'){
+    const iAm0 = net.myId !== 1;
+    const meWon = iAm0 ? p1win : p2win, meDraw = tie;
+    title.textContent = (meWon ? '🏆 VOCÊ VENCEU!' : (meDraw ? '🤝 EMPATE' : '💔 DERROTA…'));
+    title.style.color = meWon ? '#ffd34d' : (meDraw ? '#c9d6e8' : '#ff5d5d');
+    title.style.fontSize = tie ? '38px' : '44px';
+    sc.textContent = a + ' – ' + b;
+    sc.style.color = meWon ? '#ffd34d' : (meDraw ? '#c9d6e8' : '#ff5d5d');
+    document.getElementById('endSub').textContent =
+      'Online · Sala ' + (net.code || '') + ggTxt;
+    endScreen.style.borderTop = '4px solid ' + (meWon ? '#ffd34d' : p2win ? '#ff5d5d' : '#c9d6e8');
+    document.getElementById('endScreen').classList.add('show');
+    return;
+  }
+  if (mode === 'sala' && sala){
     title.textContent = p1win ? '🏆 P1 VENCEU!' : (p2win ? '🔥 P2 VENCEU!' : '🤝 EMPATE');
     title.style.color = p1win ? '#4da3ff' : (p2win ? '#ff5d5d' : '#c9d6e8');
     title.style.fontSize = tie ? '38px' : '44px';
     sc.textContent = a + ' – ' + b;
     sc.style.color = p1win ? '#4da3ff' : (p2win ? '#ff5d5d' : '#c9d6e8');
     document.getElementById('endSub').textContent =
-      'Sala ' + sala.code + ' · ' + sala.name + ' · ' + sala.dur + ' min · máx ' + goalLimit + ' gols' +
-      (goldenGoal ? ' · decidido no GOL DE OURO ⚡' : '');
+      'Sala ' + sala.code + ' · ' + sala.name + ' · ' + sala.dur + ' min · máx ' + match.goalLimit + ' gols' + ggTxt;
     endScreen.style.borderTop = '4px solid ' + (p1win ? '#4da3ff' : p2win ? '#ff5d5d' : '#c9d6e8');
     document.getElementById('endScreen').classList.add('show');
     return;
   }
   const emojis = ['🏆','💔','🤝'];
   let ti = p1win ? 0 : (p2win ? 1 : 2);
-  title.textContent = emojis[ti] + ' ' + (p1win?'VOCÊ VENCEU!':(p2win?'DERROTA…':'EMPATE'));
+  title.textContent = emojis[ti] + ' ' + (p1win ? 'VOCÊ VENCEU!' : (p2win ? 'DERROTA…' : 'EMPATE'));
   title.style.color = p1win ? '#ffd34d' : (p2win ? '#ff5d5d' : '#c9d6e8');
   title.style.fontSize = tie ? '38px' : '44px';
   sc.textContent = a + ' – ' + b;
   sc.style.color = p1win ? '#4da3ff' : (p2win ? '#ff5d5d' : '#c9d6e8');
   document.getElementById('endSub').textContent =
-    'Treino vs IA · Dificuldade: ' + ['Fácil','Médio','Difícil'][diff] +
-    (goldenGoal ? ' · decidido no GOL DE OURO ⚡' : '') +
-    (a>=goalLimit || b>=goalLimit ? ' · ' + goalLimit + ' gols' : ' · tempo esgotado');
+    'Treino vs IA · Dificuldade: ' + DIFF_NAMES[diff] + ggTxt +
+    (a >= match.goalLimit || b >= match.goalLimit ? ' · ' + match.goalLimit + ' gols' : ' · tempo esgotado');
   endScreen.style.borderTop = '4px solid ' + (p1win ? '#ffd34d' : p2win ? '#ff5d5d' : '#c9d6e8');
   document.getElementById('endScreen').classList.add('show');
 }
+function handleSimEvent(ev){
+  const myId = (mode === 'online' && net.myId != null) ? net.myId : 0;
+  const who  = id => { if (mode === 'online') return id === myId ? 'Você' : 'Oponente';
+                       return id === 0 ? (mode === 'sala' ? 'P1' : 'Você') : (mode === 'sala' ? 'P2' : 'A IA'); };
+  switch (ev.type){
+    case 'goal':
+      updateScore();
+      if (mode === 'sala') showMsg(ev.scorer === 0 ? 'GOL DO P1! ⚽' : 'GOL DO P2! 💀', 1100);
+      else if (ev.scorer === myId) showMsg('GOL! ⚽', 1100);
+      else showMsg(mode === 'online' ? 'Gol do oponente 💀' : 'Gol da IA 💀', 1100);
+      ai.mode = 'chase';
+      addShake(4, 0.18);
+      break;
+    case 'over':
+      gameState = 'over';
+      showEndScreen(ev);
+      break;
+    case 'goldenGoal':
+      showMsg('⚡ GOL DE OURO — o próximo gol vence!', 1600);
+      break;
+    case 'kickoffEnd':
+      showMsg('VAI! ⚡', 700); setTimeout(hideMsg, 700);
+      break;
+    case 'kick':
+      if (ev.rocket){
+        addShake(7, 0.32);
+        ring(ev.x, ev.y, '#ff4d4d', 3.2, 0.42, 3.5);
+        ring(ev.bx, ev.by, '#ffd34d', 1.9, 0.32, 2.5);
+        sparks(ev.bx, ev.by, 16, '#ff9d3c', 7, 2.6);
+        sparks(ev.x, ev.y, 10, '#ffd34d', 5, 2.2);
+      } else {
+        sparks(ev.bx, ev.by, 6, 'rgba(255,255,255,0.9)', 3, 1.9);
+        ring(ev.bx, ev.by, 'rgba(255,255,255,0.55)', 0.9, 0.22, 2);
+      }
+      break;
+    case 'cartHit': {
+      const mine = ev.winner === myId;
+      addShake(5, 0.22);
+      ring(ev.x, ev.y, 'rgba(255,160,60,0.85)', 1.7, 0.32, 3);
+      sparks(ev.x, ev.y, 12, '#ffa03c', 5, 2.6);
+      if (mine) showMsg('🎯 Carrinho! ' + who(ev.loser) + ' atordoado por 1,5 s', 900);
+      else showMsg('💀 ' + who(ev.winner) + ' acertou o carrinho! Você está atordoado', 1100);
+      break; }
+    case 'cartCollide':
+      addShake(6, 0.25);
+      sparks(ev.x, ev.y, 16, '#ffa03c', 6, 2.8);
+      showMsg('💥 Colisão de carrinhos! Os dois caíram', 900);
+      break;
+    case 'cartLaunch':
+      sparks(ev.x, ev.y, 8, PU_COLOR['Carrinho'], 3.5, 2.2);
+      break;
+    case 'cartBallLaunch':
+      sparks(ev.x, ev.y, 10, PU_COLOR['Carrinho'], 5, 2.4);
+      if (ev.player === myId) showMsg('🎯 Carrinho! Bola lançada na investida', 900);
+      break;
+    case 'wallBroken':
+      ring(ev.x, ev.y, '#9fb2cc', 2.2, 0.4, 3);
+      ring(ev.x, ev.y, 'rgba(255,255,255,0.5)', 1.5, 0.3, 2.5);
+      sparks(ev.x, ev.y, 18, '#8a97a8', 5, 3);
+      if (ev.cause === 'rocket'){ addShake(6, 0.26); showMsg('💥 Foguete demoliu a muralha!', 900); }
+      break;
+    case 'wallCrash':
+      addShake(4.5, 0.2);
+      if (ev.player === myId) showMsg('🧨 Você demoliu a muralha!', 900);
+      break;
+    case 'wallDown':
+      sparks(ev.x, ev.y, 10, '#8a97a8', 4, 2.4);
+      ring(ev.x, ev.y, 'rgba(159,178,204,0.8)', 1.4, 0.35, 2.5);
+      break;
+    case 'pickupCollected': {
+      const col = PU_COLOR[ev.power] || '#ffd34d';
+      sparks(ev.x, ev.y, 14, col, 4.5, 2.6);
+      ring(ev.x, ev.y, col, 1.5, 0.4, 3);
+      addShake(1.2, 0.08);
+      if (ev.player === myId) showMsg('⭐ ' + ev.power + ' pegue! Aperte ' + (mode === 'sala' ? '/' : 'Q') + ' para ativar', 1500);
+      else if (mode === 'sala') showMsg('⭐ ' + (ev.player === 0 ? 'P1' : 'P2') + ' pegou ' + ev.power + '!', 1200);
+      break; }
+    case 'powerActivated': {
+      const col = PU_COLOR[ev.power];
+      if (ev.power === 'Foguete'){
+        ring(ev.x, ev.y, '#ff4d4d', 1.7, 0.35, 3);
+        sparks(ev.x, ev.y, 10, '#ff9d3c', 4, 2);
+        if (ev.player === myId) showMsg('🚀 FOGUETE! Seu próximo chute sai 1,8× mais forte e reto', 1400);
+      } else if (ev.power === 'Carrinho'){
+        ring(ev.x, ev.y, col, 1.6, 0.3, 3);
+        addShake(1.6, 0.10);
+        if (ev.player === myId) showMsg('🎯 CARRINHO! Investida frontal — lança a bola e atordoa por 1,5 s', 1400);
+      } else if (ev.power === 'Muralha'){
+        ring(ev.sx, ev.sy, col, 2.0, 0.35, 3);
+        sparks(ev.sx, ev.sy, 12, '#9fb2cc', 3.5, 2.4);
+        addShake(2, 0.12);
+        if (ev.player === myId) showMsg('🧱 MURALHA! Surgiu em frente ao seu gol (6 s) — Foguete e Carrinho derrubam', 1400);
+      } else if (ev.power === 'Turbo'){
+        ring(ev.x, ev.y, '#43d860', 1.7, 0.35, 3);
+        ring(ev.x, ev.y, 'rgba(67,216,96,0.6)', 2.4, 0.5, 2);
+        sparks(ev.x, ev.y, 12, '#43d860', 5, 2.4);
+        addShake(2, 0.12);
+        if (ev.player === myId) showMsg('💨 TURBO! +40% de velocidade por 3 s', 1400);
+      }
+      break; }
+    case 'ballStick':
+      if (ev.player === myId) showMsg('⚽ Bola gruda em você! Espaço chuta · carrinho lança longe', 1200);
+      break;
+    case 'notice':
+      if (ev.player !== myId) break;
+      if (ev.code === 'kickoffWait') showMsg('Espera o kickoff! ⏳', 800);
+      else if (ev.code === 'cartBusy') showMsg('Termine o carrinho em andamento ⏳', 900);
+      else if (ev.code === 'noPower') showMsg('Você não tem power-up! Pegue um círculo colorido no campo ⭕', 1300);
+      break;
+  }
+}
+function drainSimEvents(){   // offline/local: a sim produziu eventos neste frame
+  if (mode === 'online') return;   // online: os eventos chegam do servidor junto com os snapshots
+  if (!match.events.length) return;
+  for (const ev of match.events) handleSimEvent(ev);
+  match.events.length = 0;
+}
 function rematch(){
+  if (mode === 'online'){
+    if (net.ws && net.ws.readyState === 1){
+      net.ws.send(JSON.stringify({ t: 'rematch' }));
+      const b = document.getElementById('rematchBtn');
+      b.disabled = true; b.textContent = 'Esperando oponente…';
+    }
+    return;
+  }
   document.getElementById('endScreen').classList.remove('show');
-  hideMsg(); resetMatch(); gameState='play';
-  showMsg('KICKOFF!',900); setTimeout(hideMsg,900);
+  hideMsg(); resetMatch(); gameState = 'play';
+  showMsg('KICKOFF!', 900); setTimeout(hideMsg, 900);
 }
 function resetMatch(){
-  me.score=0; foe.score=0; updateScore();
-  timeLeft = (mode==='sala' && sala) ? Math.max(1, Math.round(sala.dur))*60 : MATCH_TIME;
-  goldenGoal=false; kickoffPause = 3;
-  me.hasPower=null; foe.hasPower=null; me.rocket=false; foe.rocket=false;
-  me.turboT=0; foe.turboT=0;
-  me.cartState=0; foe.cartState=0; me.cartT=0; foe.cartT=0; me.slowT=0; foe.slowT=0;
-  walls = [];
-  pickups=[]; spawnPickup(); spawnPickup();
-  ball.owner=null; ball.noStealT=0;
+  match.mode = mode; match.diff = diff;
+  match.goalLimit = (mode === 'sala' && sala) ? sala.goals : GOALS_TO_WIN;
+  match.allowedPUs = allowedPU();
+  match.reset({ matchTime: (mode === 'sala' && sala) ? Math.max(1, Math.round(sala.dur)) * 60 : MATCH_TIME });
   rollAppearances();               // nova partida: nova combinação de pele/cabelo
-  resetKickoff(0); updatePUHud();
+  updateScore(); updateClock(); updatePUHud();
 }
 
 /* ================= HUD ================= */
 function updateScore(){ document.getElementById('s1').textContent=me.score; document.getElementById('s2').textContent=foe.score; document.getElementById('side1').classList.toggle('scored', false); document.getElementById('side2').classList.toggle('scored', false); }
 function updateClock(){
-  if (goldenGoal){ document.getElementById('clock').textContent = 'GO'; return; }
-  const t = Math.max(0, Math.ceil(timeLeft));
+  if (match.goldenGoal){ document.getElementById('clock').textContent = 'GO'; return; }
+  const t = Math.max(0, Math.ceil(match.timeLeft));
   document.getElementById('clock').textContent = Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
 }
 function updatePUHud(){
@@ -1311,30 +1095,9 @@ function showMsg(t, ms){ const m=document.getElementById('msg'); m.textContent=t
 function hideMsg(){ document.getElementById('msg').classList.add('hidden'); }
 
 /* ================= LOOP ================= */
-let acc=0, last=0, timeAcc=0;
-function step(dt){
-  if (gameState!=='play') return;
-  // pausa de kickoff: 3 s congelados nos pontos de partida após gol (ou início)
-  if (kickoffPause>0){
-    kickoffPause -= dt;
-    me.stunT=Math.max(0,me.stunT-dt);   foe.stunT=Math.max(0,foe.stunT-dt);
-    if (kickoffPause<=0){ kickoffPause=0; showMsg('VAI! ⚡',700); setTimeout(hideMsg,700); }
-    return;   // ninguém se move, IA parada, bola no centro
-  }
-  // timers
-  me.stunT=Math.max(0,me.stunT-dt); foe.stunT=Math.max(0,foe.stunT-dt);
-  me.turboT=Math.max(0,me.turboT-dt); foe.turboT=Math.max(0,foe.turboT-dt);
-  me.hitFxT=Math.max(0,me.hitFxT-dt); foe.hitFxT=Math.max(0,foe.hitFxT-dt);
-  // muralhas: esgotam, desmoronam e são filtradas
-  for (const w of walls){
-    w.life -= dt;
-    if (w.life<=0){
-      sparks(w.x, w.y, 14, '#8a97a8', 4, 2.8);
-      ring(w.x, w.y, 'rgba(159,178,204,0.8)', 1.8, 0.35, 2.5);
-    }
-  }
-  walls = walls.filter(w=>w.life>0);
-  // rastros e chamas contínuas: turbo deixa linhas de velocidade + foguete armado solta brasas
+let acc=0, last=0, netAcc=0, pingAcc=0;
+/* partículas contínuas derivadas do estado (turbo, foguete, carrinho, chamas da bola) */
+function ambientFX(){
   for (const p of players){
     if (p.turboT>0 && Math.hypot(p.vx,p.vy)>1.5){
       fxPush({type:'dot', x:p.x-p.vx*0.035, y:p.y-p.vy*0.035, vx:0, vy:0,
@@ -1344,122 +1107,18 @@ function step(dt){
       fxPush({type:'dot', x:p.x+(Math.random()-0.5)*0.35, y:p.y+0.22, vx:0, vy:-2.4,
               color:Math.random()<0.5?'#ff9d3c':'#ffd34d', size:1.7, life:0.25, max:0.25});
     }
-  }
-  // jogador humano
-  if (!me.planted && me.stunT<=0 && me.cartState!==1 && me.cartState!==2){
-    const [ix,iy,n] = inputDir(0);
-    if (n){ me.vx += ix*ACCEL*dt; me.vy += iy*ACCEL*dt; me.facing=[ix,iy]; }
-  }
-  const holdingCtrl = (mode==='sala' ? (keys['ControlLeft']||keys['Control'])
-                                     : (keys['ControlLeft']||keys['ControlRight']||keys['Control']));
-  me.planted = holdingCtrl && me.stunT<=0 && me.cartState===0;
-  if (me.planted){ me.vx=0; me.vy=0; }
-  // carga de chute (carrega enquanto Espaço pressionado — encostando ou com a bola grudada)
-  if (keys['Space'] && (touchingBall(me) || ball.owner===me)){ me.charging=true; me.kickChargeT+=dt; }
-  if (holdingCtrl){ me.charging=false; me.kickChargeT=0; }
-  // P2 humano (1v1 local) OU IA (treino)
-  if (mode==='sala'){
-    const hCtrl2 = keys['ControlRight'];
-    if (!foe.planted && foe.stunT<=0 && foe.cartState!==1 && foe.cartState!==2){
-      const [ix,iy,n] = inputDir(1);
-      if (n){ foe.vx += ix*ACCEL*dt; foe.vy += iy*ACCEL*dt; foe.facing=[ix,iy]; }
-    }
-    foe.planted = hCtrl2 && foe.stunT<=0 && foe.cartState===0;
-    if (foe.planted){ foe.vx=0; foe.vy=0; }
-    if (keys['Enter'] && (touchingBall(foe) || ball.owner===foe)){ foe.charging=true; foe.kickChargeT+=dt; }
-    if (hCtrl2){ foe.charging=false; foe.kickChargeT=0; }
-  } else {
-    aiThink(dt);
-  }
-  // movimento — a bola GRUDA em quem encostar nela primeiro (drible estilo Ball 2D)
-  movePlayer(me, dt); movePlayer(foe, dt);
-  if (ball.owner) carryBall(); else moveBall(dt);
-  applyAftertouch(me, dt); applyAftertouch(foe, dt);
-  // colisões jogador×jogador
-  me.mass = me.planted?3:1; foe.mass = foe.planted?3:1;
-  const met = collide(me, foe, 0.4, false, false);
-  if (met){
-    // CARRINHO: quem está em investida atropela e atordoa
-    const carting = p => p.cartState===2;
-    const endCart = p => { p.cartState=3; p.slowT=CART_REC; p.vx*=0.2; p.vy*=0.2; };
-    if (carting(me) && !carting(foe)){
-      foe.vx += me.cartDir[0]*CART_KNOCK; foe.vy += me.cartDir[1]*CART_KNOCK;
-      foe.stunT = CART_STUN; foe.planted = false; foe.cartState=0; foe.cartT=0; foe.slowT=0;
-      foe.hitFxT = 0.35;
-      endCart(me);
-      addShake(5, 0.22);
-      ring(foe.x, foe.y, 'rgba(255,160,60,0.85)', 1.7, 0.32, 3);
-      sparks(foe.x, foe.y, 12, '#ffa03c', 5, 2.6);
-      if (me.id===0) showMsg('🎯 Carrinho! ' + (mode==='sala' ? 'P2 atordoado por 1,5 s' : 'IA atordoada por 1,5 s'), 900);
-    } else if (carting(foe) && !carting(me)){
-      me.vx += foe.cartDir[0]*CART_KNOCK; me.vy += foe.cartDir[1]*CART_KNOCK;
-      me.stunT = CART_STUN; me.planted = false; me.cartState=0; me.cartT=0; me.slowT=0;
-      me.hitFxT = 0.35;
-      endCart(foe);
-      addShake(5, 0.22);
-      ring(me.x, me.y, 'rgba(255,160,60,0.85)', 1.7, 0.32, 3);
-      sparks(me.x, me.y, 12, '#ffa03c', 5, 2.6);
-      if (foe.id===1) showMsg('💀 ' + (mode==='sala' ? 'Carrinho do P2! P1 atordoado por 1,5 s' : 'A IA acertou o carrinho! Você está atordoado'), 1100);
-    } else if (carting(me) && carting(foe)){
-      // dois carrinhos de frente: batida forte dos dois lados
-      me.vx -= foe.cartDir[0]*8; me.vy -= foe.cartDir[1]*8;
-      foe.vx -= me.cartDir[0]*8; foe.vy -= me.cartDir[1]*8;
-      me.stunT = 0.8; foe.stunT = 0.8;
-      endCart(me); endCart(foe);
-      addShake(6, 0.25);
-      sparks((me.x+foe.x)/2, (me.y+foe.y)/2, 16, '#ffa03c', 6, 2.8);
-      showMsg('💥 Colisão de carrinhos! Os dois caíram', 900);
-    }
-    // quem levou o carrinho solta a bola
-    if (ball.owner && ball.owner.stunT>0){ ball.owner=null; ball.noStealT=0.25; }
-  }
-  // posse / roubo da bola
-  ball.noStealT = Math.max(0, ball.noStealT - dt);
-  for (const p of players){
-    p.mass = p.planted?3:1;
-    if (ball.owner === p) continue;
-    // CARRINHO: a investida lança a bola na direção do movimento (rouba a posse!)
-    if (p.cartState===2 && touchingBall(p) && ball.owner!==p){
-      ball.owner = null; ball.noStealT = 0.30;
-      ball.vx = p.cartDir[0]*CART_BALL_POW; ball.vy = p.cartDir[1]*CART_BALL_POW;
-      ball.lastKicker = p; ball.afterT = 0.2;
-      addShake(3, 0.15);
-      sparks(ball.x, ball.y, 10, PU_COLOR['Carrinho'], 5, 2.4);
-      if (p.id===0) showMsg('🎯 Carrinho! Bola lançada na investida', 900);
-      continue;
-    }
-    // encostou quando a bola está solta → gruda (primeiro que pega)
-    if (!ball.owner && touchingBall(p) && ball.noStealT<=0 && p.stunT<=0 && p.cartState!==2){
-      ball.owner = p;
-      ball.lastKicker = p; ball.afterT = 0;
-      if (p.id===0) showMsg('⚽ Bola gruda em você! Espaço chuta · carrinho lança longe', 1200);
+    if (p.cartState===2 && Math.random()<0.85){
+      fxPush({type:'dot', x:p.x-p.cartDir[0]*p.r, y:p.y-p.cartDir[1]*p.r+(Math.random()-0.5)*0.25,
+              vx:-p.cartDir[0]*2, vy:-p.cartDir[1]*2, color:'rgba(205,195,175,0.8)', size:2.4, life:0.30, max:0.30});
     }
   }
-  // power-ups no chão
-  for (const pk of pickups){
-    for (const p of players){
-      if (!p.hasPower && Math.hypot(pk.x-p.x, pk.y-p.y) < p.r+0.75){
-        p.hasPower = pk.type; pk.got=true; updatePUHud();
-        // explosão de partículas na cor do poder ao coletar
-        sparks(pk.x, pk.y, 14, PU_COLOR[pk.type], 4.5, 2.6);
-        ring(pk.x, pk.y, PU_COLOR[pk.type], 1.5, 0.4, 3);
-        addShake(1.2, 0.08);
-        if (p.id===0){
-          showMsg('⭐ '+pk.type+' pegue! Aperte Q para ativar', 1500);
-        } else if (mode==='sala'){
-          showMsg('⭐ P2 pegou '+pk.type+'! Aperte / para ativar', 1500);
-        }
-      }
+  if (ball.flameT>0){
+    for (let i=0;i<2;i++){
+      fxPush({type:'dot', x:ball.x+(Math.random()-0.5)*0.10, y:ball.y+(Math.random()-0.5)*0.10,
+              vx:-ball.vx*0.05+(Math.random()-0.5), vy:-ball.vy*0.05+(Math.random()-0.5),
+              color:Math.random()<0.5?'#ff9d3c':'#ffd34d',
+              size:1.5+Math.random()*1.7, life:0.22+Math.random()*0.18, max:0.40});
     }
-  }
-  pickups = pickups.filter(pk=>!pk.got);
-  if (pickups.length<2 && Math.random()<dt*0.12) spawnPickup();
-  // relógio
-  timeAcc += dt;
-  timeLeft -= dt;
-  if (timeLeft<=0){
-    if (me.score!==foe.score) endMatch();
-    else if (!goldenGoal){ goldenGoal=true; timeLeft=9999; showMsg('⚡ GOL DE OURO — o próximo gol vence!',1600); }
   }
 }
 function loop(t){
@@ -1467,12 +1126,20 @@ function loop(t){
   if (!last) last=t;
   let dtms = t-last; last=t;
   if (dtms>100) dtms=100;
-  acc += dtms/1000;
   const FIXED = 1/60;
-  while (acc >= FIXED){ step(FIXED); acc -= FIXED; }
-  updateFX(dtms/1000);          // partículas correm mesmo em pausa (só efeitos visuais)
+  if (mode==='online'){
+    netTick(dtms);
+  } else if (gameState === 'play'){
+    acc += dtms/1000;
+    while (acc >= FIXED){ syncInputsLocal(); match.step(FIXED, aiThink); acc -= FIXED; }
+  } else {
+    acc = 0;
+  }
+  drainSimEvents();
+  updateFX(dtms/1000);       // partículas correm mesmo em pausa (só efeitos visuais)
+  ambientFX();
   render(t/1000);
-  updateClock(); if (gameState==='play') updatePUHud();
+  updateClock(); updateScore(); if (gameState==='play') updatePUHud();
 }
 
 /* ================= VISUAL DOS JOGADORES ================= */
@@ -1706,7 +1373,7 @@ function render(time){
     }
     // etiqueta do jogador
     ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.font='bold 9px sans-serif'; ctx.textAlign='center';
-    ctx.fillText(mode==='sala' ? (p.id===0?'P1':'P2') : (p.id===0?acctLabel():'IA'), mx(p.x), my(p.y) - p.r*PX - 7);
+    ctx.fillText(playerLabel(p), mx(p.x), my(p.y) - p.r*PX - 7);
     // badge do foguete armado: mini-foguete flutuando acima da cabeça + anel vermelho
     if (p.rocket){
       const bob = Math.sin(time*4)*1.5;
@@ -1728,14 +1395,14 @@ function render(time){
   // efeitos de partículas/ondas por cima de tudo
   drawFX();
   // aviso de gol de ouro
-  if (goldenGoal && gameState==='play'){
+  if (match.goldenGoal && gameState==='play'){
     ctx.fillStyle='rgba(255,211,77,0.85)'; ctx.font='bold 18px sans-serif'; ctx.textAlign='center';
     ctx.fillText('⚡ GOL DE OURO ⚡', 1072/2, 26);
   }
   // CONTADOR DO KICKOFF: 3 s exibidos na faixa acima do campo com todos congelados
-  if (kickoffPause>0 && gameState==='play'){
-    const n = Math.ceil(kickoffPause);
-    const pulse = 0.55 + 0.45*(kickoffPause%1);   // número "respira" a cada segundo
+  if (match.kickoffPause>0 && gameState==='play'){
+    const n = Math.ceil(match.kickoffPause);
+    const pulse = 0.55 + 0.45*(match.kickoffPause%1);   // número "respira" a cada segundo
     ctx.save();
     ctx.textAlign='center';
     ctx.font='bold 13px sans-serif';
@@ -1793,7 +1460,8 @@ document.getElementById('menuBtn').onclick = ()=>{
 /* ================= SALAS: UI E FLUXO ================= */
 const salaEl = document.getElementById('salaScreen');
 function restoreMode(){
-  mode='ia'; sala=null; goalLimit=GOALS_TO_WIN;
+  stopOnline();
+  mode='ia'; sala=null;
   document.getElementById('lbl1').textContent = acctLabel();
   document.getElementById('lbl2').textContent = 'IA';
   document.getElementById('powerups2').classList.add('hidden');
@@ -1870,7 +1538,6 @@ function salaPlay(){
 function startSalaMatch(){
   if (!sala) return;
   mode = 'sala';
-  goalLimit = sala.goals;
   document.getElementById('lbl1').textContent = 'P1';
   document.getElementById('lbl2').textContent = 'P2';
   document.getElementById('powerups2').classList.remove('hidden');
@@ -1904,6 +1571,156 @@ document.getElementById('salaCodeInput').addEventListener('keydown', e=>{
   if (e.code==='Enter') document.getElementById('salaJoinBtn').click();
 });
 updateClock(); updateScore(); updatePUHud();
+
+/* ================= ONLINE: 1v1 por código (servidor autoritativo) ================= */
+const onlineEl = document.getElementById('onlineScreen');
+const onlineWaitEl = document.getElementById('onlineWait');
+const onlineErrEl = document.getElementById('onlineJoinErr');
+const net = { ws: null, myId: null, code: null, snapBuf: [], started: false };
+
+function defaultWsUrl(){
+  try { const saved = localStorage.getItem('ft2d_ws_url'); if (saved) return saved; } catch(e){}
+  if (location.protocol === 'http:' || location.protocol === 'https:'){
+    // hospedado como estático (ex.: GitHub Pages): não há servidor — cai para localhost
+    if (/github\.io$/.test(location.hostname)) return 'ws://localhost:3000';
+    return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+  }
+  return 'ws://localhost:3000';
+}
+function openOnline(){
+  onlineEl.classList.remove('hidden');
+  const urlEl = document.getElementById('wsUrl');
+  if (!urlEl.value) urlEl.value = defaultWsUrl();
+  onlineWaitEl.classList.add('hidden');
+  onlineErrEl.textContent = '';
+}
+function closeOnline(){ onlineEl.classList.add('hidden'); }
+function setOnlineStatus(t){ onlineErrEl.textContent = t || ''; }
+function netConnect(onOpen){
+  const urlEl = document.getElementById('wsUrl');
+  const url = (urlEl.value || '').trim();
+  if (!url){ setOnlineStatus('Informe o endereço do servidor.'); return; }
+  try { localStorage.setItem('ft2d_ws_url', url); } catch(e){}
+  stopOnline();
+  setOnlineStatus('Conectando…');
+  let ws;
+  try { ws = new WebSocket(url); } catch(e){ setOnlineStatus('Endereço inválido: ' + url); return; }
+  ws.onopen = ()=>{ setOnlineStatus(''); onOpen && onOpen(); };
+  ws.onerror = ()=> setOnlineStatus('Não foi possível conectar. O servidor está rodando em ' + url + ' ?');
+  ws.onclose = ()=>{
+    net.ws = null;
+    if (net.started && gameState === 'play') showMsg('⚠️ Conexão com o servidor perdida', 3000);
+  };
+  ws.onmessage = ev => {
+    let msg; try { msg = JSON.parse(ev.data); } catch(e){ return; }
+    handleNetMsg(msg);
+  };
+  net.ws = ws;
+}
+document.getElementById('onlineCreateBtn').onclick = ()=>{
+  netConnect(()=> net.ws.send(JSON.stringify({ t: 'create' })));
+};
+document.getElementById('onlineJoinBtn').onclick = ()=>{
+  const code = normalizeCode(document.getElementById('onlineCodeInput').value);
+  if (!code){ setOnlineStatus('Digite o código da sala.'); return; }
+  netConnect(()=> net.ws.send(JSON.stringify({ t: 'join', code })));
+};
+document.getElementById('onlineCodeInput').addEventListener('keydown', e=>{
+  if (e.code === 'Enter') document.getElementById('onlineJoinBtn').click();
+});
+document.getElementById('onlineBack').onclick = ()=>{
+  stopOnline(); closeOnline(); restoreMode(); menuEl.classList.remove('hidden');
+};
+document.getElementById('onlineCopyBtn').onclick = async ()=>{
+  const code = document.getElementById('onlineCodeBig').textContent;
+  try { await navigator.clipboard.writeText(code); showMsg('Código copiado: ' + code, 1400); }
+  catch(e){ prompt('Copia o código:', code); }
+};
+function handleNetMsg(msg){
+  if (msg.t === 'created' || msg.t === 'joined'){
+    net.code = msg.code; net.myId = msg.myId;
+    document.getElementById('onlineCodeBig').textContent = msg.code;
+    onlineWaitEl.classList.remove('hidden');
+    setOnlineStatus('');
+    return;
+  }
+  if (msg.t === 'start'){   // partida começa (ou revanche aceita pelos dois)
+    net.myId = msg.myId; net.code = msg.code || net.code;
+    startMatchOnline();
+    return;
+  }
+  if (msg.t === 'state'){   // 30 Hz: snapshot + eventos acumulados desde o último envio
+    net.snapBuf.push({ recv: performance.now(), s: msg.s });
+    if (net.snapBuf.length > 4) net.snapBuf.shift();
+    if (Array.isArray(msg.ev)) for (const ev of msg.ev) handleSimEvent(ev);
+    return;
+  }
+  if (msg.t === 'peerLeft'){
+    showMsg('⚠️ O oponente desconectou', 3500);
+    return;
+  }
+  if (msg.t === 'error'){ setOnlineStatus(msg.msg || 'Erro.'); return; }
+}
+function startMatchOnline(){
+  mode = 'online';
+  net.started = true; net.snapBuf.length = 0;
+  closeOnline(); menuEl.classList.add('hidden');
+  document.getElementById('lbl1').textContent = acctLabel();
+  document.getElementById('lbl2').textContent = 'Oponente';
+  document.getElementById('powerups2').classList.add('hidden');
+  document.getElementById('controlsSala').classList.add('hidden');
+  document.getElementById('endScreen').classList.remove('show');
+  const rb = document.getElementById('rematchBtn'); rb.disabled = false; rb.textContent = '↻ Revanche';
+  hideMsg(); gameState = 'play';
+  updateScore(); updatePUHud(); updateClock();
+  showMsg('KICKOFF — boa partida! ⚡', 1500);
+}
+const lerp = (a, b, t) => a + (b - a) * t;
+function netInterpolate(){   // buffer de ~100 ms: suaviza o movimento vindo dos snapshots
+  const buf = net.snapBuf;
+  if (!buf.length) return;
+  const now = performance.now();
+  const target = now - 100;
+  let a = null, after = buf[buf.length - 1];
+  for (let i = buf.length - 1; i >= 0; i--){
+    if (buf[i].recv <= target){ a = buf[i]; after = (i + 1 < buf.length ? buf[i + 1] : buf[i]); break; }
+  }
+  const latest = buf[buf.length - 1].s;
+  match.applySnapshot(latest);            // placar, timers, poderes, paredes…
+  if (!a) return;
+  const span = Math.max(1, after.recv - a.recv);
+  const t = Math.max(0, Math.min(1, (target - a.recv) / span));
+  for (let i = 0; i < 2; i++){
+    const p = match.players[i];
+    p.x = lerp(a.s.players[i].x, after.s.players[i].x, t);
+    p.y = lerp(a.s.players[i].y, after.s.players[i].y, t);
+    p.vx = lerp(a.s.players[i].vx, after.s.players[i].vx, t);
+    p.vy = lerp(a.s.players[i].vy, after.s.players[i].vy, t);
+  }
+  ball.x = lerp(a.s.ball.x, after.s.ball.x, t);
+  ball.y = lerp(a.s.ball.y, after.s.ball.y, t);
+  ball.vx = lerp(a.s.ball.vx, after.s.ball.vx, t);
+  ball.vy = lerp(a.s.ball.vy, after.s.ball.vy, t);
+}
+function netTick(dtms){
+  netAcc += dtms; pingAcc += dtms;
+  const ws = net.ws;
+  if (ws && ws.readyState === 1){
+    if (netAcc >= 16.6){                 // envia input a 60 Hz
+      netAcc = 0;
+      syncNetInput();
+      ws.send(JSON.stringify({ t: 'input', i: netInput }));
+      netInput.ela = false; netInput.pow = false;   // borda consumida no envio
+    }
+    if (pingAcc >= 25000){ pingAcc = 0; ws.send(JSON.stringify({ t: 'ping' })); }
+  }
+  netInterpolate();
+}
+function stopOnline(){
+  const ws = net.ws;
+  net.ws = null; net.myId = null; net.code = null; net.started = false; net.snapBuf.length = 0;
+  if (ws){ try { ws.onclose = null; ws.close(); } catch(e){} }
+}
 
 /* ================= CONTAS (banco local no dispositivo) ================= */
 const ACC_KEY  = 'ft2d_accounts_v1';   // "banco de dados" de contas (localStorage)
@@ -2144,6 +1961,7 @@ showSplash(() => { menuEl.classList.remove('hidden'); openLogin(); });
 
 function startBtn(){
   if (menuMode==='sala'){ openSala(); return; }
+  if (menuMode==='online'){ openOnline(); return; }
   openDiffScreen();
 }
 document.getElementById('startBtn').onclick = startBtn;

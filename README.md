@@ -26,12 +26,62 @@ O núcleo (bola, chute, defesa) é o de sempre; o diferencial é a profundidade 
 
 ---
 
+## 🌐 Modo Online (implementado)
+
+O jogo tem **1v1 online por código** com servidor autoritativo — a mesma simulação de física que roda no navegador (`shared/sim.js`) também roda no servidor (`server/`), o que garante partidas idênticas dos dois lados.
+
+**Como jogar online:**
+1. Um jogador clica em **🌐 Online 1v1 → ➕ Criar sala** e recebe um código (ex.: `S2D-A7K2`)
+2. O outro clica em **Online 1v1 → 🔑 Entrar** e digita o código
+3. Quando os dois entram, a partida começa — placar, relógio, power-ups e revanche funcionam ao vivo (snapshots a 30 Hz, simulação a 60 Hz)
+
+**Rodando localmente:**
+```bash
+cd server
+npm install
+node server.js          # http://localhost:3000  (PORT=8080 node server.js para outra porta)
+```
+O servidor também serve os arquivos estáticos do jogo — não precisa de outra hospedagem.
+
+**Hospedando no seu servidor (produção):**
+1. Tenha Node.js 18+ instalado
+2. Copie o repositório para o servidor e rode `cd server && npm install`
+3. Suba o processo com `PORT=3000 node server.js` — de preferência atrás de um proxy com HTTPS (nginx/caddy) e um supervisor (systemd ou pm2). Exemplo com systemd:
+   ```ini
+   [Unit]
+   Description=E-FOOTBALL 2D server
+   After=network.target
+   [Service]
+   WorkingDirectory=/opt/jogo-efotboll-2d
+   Environment=PORT=3000
+   ExecStart=/usr/bin/node server/server.js
+   Restart=always
+   [Install]
+   WantedBy=multi-user.target
+   ```
+4. No nginx, faça proxy de `https://seu-dominio` → `http://127.0.0.1:3000` (o jogo e o WebSocket sobem na mesma porta)
+5. No jogo, em **Online 1v1 → Servidor**, aponte para `wss://seu-dominio` (salvo no navegador)
+
+> O GitHub Pages hospeda apenas o cliente (estático) — o modo online precisa deste servidor rodando. O campo "Servidor" do jogo lembra o endereço configurado.
+
+**Limitações atuais (pós-MVP):** sem reconexão automática se cair, sem quick match/matchmaking, sem ELO — salas por código apenas. Re revanche: os dois clicam em **Revanche** na tela de fim de partida.
+
+**Arquitetura real do código:**
+```
+index.html      cliente completo (renderização, HUD, menu, contas locais)
+shared/sim.js   simulação determinística compartilhada (física, chutes, power-ups)
+server/server.js  WebSocket autoritativo: salas, sim 60 Hz, snapshots 30 Hz,
+                  validação de inputs + também serve os arquivos estáticos
+```
+
+---
+
 ## ✅ Escopo do MVP
 
 ### Dentro
 
-1. 1v1 online (servidor autoritativo).
-2. Treino vs IA (3 dificuldades).
+1. 1v1 online (servidor autoritativo, por código) — já implementado ✔ (quick match ainda não).
+2. Treino vs IA (3 dificuldades) — já implementado ✔.
 3. Sala por código + quick match simples.
 4. **1v1 local por sala (código + editor: poderes permitidos, duração até 15 min, gols até 15) — já implementado ✔.**
 5. Conta convidada (apelido).
