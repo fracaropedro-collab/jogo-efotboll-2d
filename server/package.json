@@ -1,0 +1,16 @@
+{
+  "name": "jogo-efotboll-2d-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor autoritativo do E-FOOTBALL 2D — salas 1v1 online por código + hospeda os arquivos estáticos do jogo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
