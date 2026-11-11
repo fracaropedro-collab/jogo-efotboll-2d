@@ -5,8 +5,8 @@
 <title>E-FOOTBALL 2D</title>
 <style>
   :root {
-    --bg:#0b1220; --field:#1f7a3d;
-    --grass:#2fae5f; --grass-dark:#1f8a47; --grass-deep:#0f3020;
+    --bg:#0b1220; --field:#16345f;
+    --grass:#28508a; --grass-dark:#1b3a63; --grass-deep:#0e1b30;
     --gold:#ffd34d; --gold-dim:#c9a227;
     --blue:#4da3ff; --red:#ff5d5d;
     --glass: rgba(11,18,32,.62);
@@ -17,7 +17,7 @@
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:
            radial-gradient(1100px 480px at 50% -12%, rgba(77,163,255,.12), transparent 62%),
-           radial-gradient(950px 460px at 88% 112%, rgba(47,174,95,.10), transparent 60%),
+           radial-gradient(950px 460px at 88% 112%, rgba(60,110,180,.14), transparent 60%),
            repeating-linear-gradient(90deg, rgba(255,255,255,.024) 0 44px, rgba(255,255,255,0) 44px 92px),
            var(--bg);
          font-family:'Segoe UI',system-ui,sans-serif; color:#e8eef7;
@@ -1221,7 +1221,7 @@ function drawPlayerBody(p, time){
 
 /* ================= RENDER ================= */
 function render(time){
-  ctx.fillStyle='#14242e'; ctx.fillRect(0,0,1072,608);
+  ctx.fillStyle='#0f1a2b'; ctx.fillRect(0,0,1072,608);
   ctx.save();
   // tremor de tela nos impactos (foguete, carrinho, muralhas)
   if (shake.t>0 && shake.dur>0){
@@ -1229,9 +1229,9 @@ function render(time){
     ctx.translate((Math.random()*2-1)*m, (Math.random()*2-1)*m);
   }
   // campo
-  ctx.fillStyle='#1f7a3d'; ctx.fillRect(mx(0),my(0),FIELD_W*PX,FIELD_H*PX);
+  ctx.fillStyle='#16345f'; ctx.fillRect(mx(0),my(0),FIELD_W*PX,FIELD_H*PX);
   // listras
-  ctx.fillStyle='rgba(255,255,255,0.04)';
+  ctx.fillStyle='rgba(255,255,255,0.085)';
   for (let i=0;i<FIELD_W;i+=2) ctx.fillRect(mx(i),my(0),PX,FIELD_H*PX);
   // contorno
   ctx.strokeStyle='#e8eef7'; ctx.lineWidth=2;
@@ -1252,9 +1252,9 @@ function render(time){
   // gols (redes)
   for (const side of [-1,1]){
     const gx = side<0? mx(-GOAL_DEPTH) : mx(FIELD_W);
-    ctx.fillStyle='rgba(120,220,180,0.15)';
+    ctx.fillStyle='rgba(255,255,255,0.10)';
     ctx.fillRect(side<0?gx:mx(FIELD_W), my(gy1), GOAL_DEPTH*PX, (gy2-gy1)*PX);
-    ctx.strokeStyle='#78dcb4'; ctx.strokeRect(side<0?gx:mx(FIELD_W), my(gy1), GOAL_DEPTH*PX, (gy2-gy1)*PX);
+    ctx.strokeStyle='#ffffff'; ctx.strokeRect(side<0?gx:mx(FIELD_W), my(gy1), GOAL_DEPTH*PX, (gy2-gy1)*PX);
     // rede entrelaçada: linhas brancas formando quadrados clássicos
     ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1.1;
     const mesh = 0.30; // metros por quadrado da rede
