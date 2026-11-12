@@ -1,0 +1,16 @@
+{
+  "name": "e-football-2d-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API de contas do E-FOOTBALL 2D (Render Web Service + PostgreSQL)",
+  "main": "api.js",
+  "scripts": {
+    "start": "node api.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}
